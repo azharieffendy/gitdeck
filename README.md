@@ -29,14 +29,17 @@ graph. Manage branches. Push and pull. No accounts, no telemetry, no lock-in.
 10. [The history graph](#the-history-graph)
 11. [The diff engine](#the-diff-engine)
 12. [Design system](#design-system)
-13. [Security model](#security-model)
-14. [Testing](#testing)
-15. [Running under WSL](#running-under-wsl)
-16. [Troubleshooting](#troubleshooting)
-17. [Roadmap](#roadmap)
-18. [Contributing](#contributing)
-19. [License](#license)
-20. [Acknowledgments](#acknowledgments)
+13. [Credential prompts](#credential-prompts)
+14. [Security model](#security-model)
+15. [Testing](#testing)
+16. [Running on Windows](#running-on-windows)
+17. [Running on Linux](#running-on-linux)
+18. [Running under WSL](#running-under-wsl)
+19. [Troubleshooting](#troubleshooting)
+20. [Roadmap](#roadmap)
+21. [Contributing](#contributing)
+22. [License](#license)
+23. [Acknowledgments](#acknowledgments)
 
 ---
 
@@ -61,9 +64,27 @@ is not affiliated with, derived from, or endorsed by any other Git client.
 - **Per-file stage / unstage** buttons that appear on hover
 - **Stage all** / **Unstage all** section actions
 - Rename-aware: files staged as renames show `old -> new`
-- Commit box with message validation and a live staged-file counter
+- Commit box with message validation, a live staged-file counter, spell
+  checking (right-click a word for suggestions), and an **Amend last commit**
+  option that loads the previous message
+- **Discard** changes per file (asks first; untracked files are deleted)
+- **Merge / cherry-pick / revert in progress** banner with **Continue** (enabled
+  once no conflicts remain) and **Abort**
+- **Conflict view**: see the conflicting hunks with their markers, take
+  **ours** or **theirs** for the whole file, or edit it yourself and
+  **Mark resolved**
+- **Blame**: per-line commit, author, and date for any tracked file; click a
+  hash to jump to that commit in History
+
+### Stashes
+- Stash the working tree with an optional message, optionally including
+  untracked files
+- Browse stashes with their diffs; **apply**, **pop**, or **drop** each one
 
 ### Diff viewer
+- **Unified** or **side-by-side** layout, switchable per diff and remembered
+- **Hunk actions**: stage, unstage, or discard a single hunk instead of the
+  whole file
 - Unified diffs with **old/new line numbers**, the change sign column, and
   color-coded rows (green additions, red deletions)
 - Three diff sources: **working tree** (unstaged), **index** (staged), and
@@ -81,6 +102,8 @@ is not affiliated with, derived from, or endorsed by any other Git client.
   branches (blue), tags (amber)
 - Click any commit to read its full message, author, date, parent hashes, and
   complete diff
+- **Cherry-pick** or **revert** any commit onto the current branch (merge
+  commits use their first parent as mainline)
 
 ### Branches
 - Local branch list with the current branch highlighted, plus upstream
@@ -94,7 +117,58 @@ is not affiliated with, derived from, or endorsed by any other Git client.
 - **Push** uses the existing upstream; on the first push it sets one
   automatically (`git push -u <remote> <branch>`)
 - **Pull** with `--no-edit` so merges never block on an editor
+- **Fetch** all remotes with pruning
+- When a remote asks for a username, password, token, SSH passphrase, or
+  host-key confirmation, GitDeck shows a **credential dialog** instead of
+  failing (see [Credential prompts](#credential-prompts))
 - **Ahead/behind counters** next to the branch pill (`↓2 ↑1`)
+- **Pull mode** (merge or rebase) is a setting; a rebase that stops on a
+  conflict lands you in the conflict view with Continue / Abort
+
+### Line staging, editing, and merging
+- **Line-level staging**: in the unified diff, click lines to pick them, then
+  **Stage lines**, **Unstage lines**, or **Discard lines** for just those rows
+- **Word-level highlighting** of what changed inside a modified line
+- **Edit** any working-tree text file in place (Ctrl+S saves; CRLF line
+  endings are kept)
+- **Three-way merge editor**: each conflict shows ours, theirs, and (on
+  demand) the merge base; pick a side or both orders per conflict, or edit the
+  result freely, then **Save & mark resolved**
+- **Blame at older revisions**: step to the file as it was before any line's
+  commit
+
+### History, tags, and rebase
+- **Filter** history by subject, author, branch/tag name, or hash prefix, and switch to the **reflog**
+- **Multi-select** commits (Ctrl/Shift+click) and cherry-pick them in order
+- **Tags**: create (lightweight or annotated) on any commit, push, delete
+  locally or on a remote
+- **Interactive rebase**: reorder, reword, squash, fixup, or drop commits from
+  a chosen base
+- **Commit template**: `commit.template` pre-fills the message box
+
+### Branches, remotes, stashes
+- **Rename** a branch; **add** and **remove** remotes
+- **Stash selected files** only, from the stash view or a file's detail pane
+
+### Repository
+- **Tabs**: several repositories open at once; tabs and per-repository commit
+  drafts are kept across switches and restored at launch
+- **Submodules**: status, update one or all, open one in its own tab
+- **Worktrees**: list, add (new or existing branch), open, remove
+- **Git LFS**: tracked patterns and file counts, **LFS pull**
+
+### GitHub pull requests
+- List open/closed/all pull requests for a GitHub `origin`, read the
+  description and comments rendered as Markdown, **check out** a pull request
+  locally, **create** one from the current branch, or **open in browser**
+- The token comes from `GH_TOKEN` / `GITHUB_TOKEN` or your git credential
+  helper (`git credential fill` for github.com); it never leaves the main
+  process
+
+### Settings
+- **Light / dark / system theme** (toolbar toggle and Settings dialog)
+- **Custom git executable**: point GitDeck at any `git` binary; a path that
+  does not run `git --version` is rejected and PATH git stays in use
 
 ## Interface overview
 
@@ -230,15 +304,23 @@ GUI.
 
 | Path | Role |
 | --- | --- |
-| `main.js` | Electron main process: window creation, native dialogs, one IPC handler per operation, smoke/screenshot test hooks, WSL compatibility switches |
+| `main.js` | Electron main process: window creation, native dialogs, smoke/screenshot test hooks, WSL compatibility switches |
+| `ipc.js` | Every `gd:*` channel, mapped onto the git and GitHub layers |
 | `preload.js` | `contextBridge` that forwards only `gd:`-prefixed channels |
-| `git.js` | The entire git integration: spawns `git -C <repo> ...`, parses output, exposes 20+ async functions. No Electron imports — runs under plain Node for tests |
+| `git.js` | Core git integration: spawns `git -C <repo> ...`, parses output. No Electron imports — runs under plain Node for tests |
+| `git-more.js` | Tags, remotes, reflog, interactive rebase, merge-editor I/O, submodules, worktrees, LFS, file read/write, commit template |
+| `github.js` | GitHub REST client for pull requests (token from env or the git credential helper) |
+| `editor/editor.js` | `GIT_SEQUENCE_EDITOR` / `GIT_EDITOR` helper that feeds the interactive-rebase plan to git |
+| `askpass/` | Credential prompt helper and its local socket server |
 | `renderer/index.html` | Page shell with a strict CSP |
-| `renderer/app.js` | View state machine and all UI wiring (working tree, history, branches, toolbar) |
-| `renderer/diff.js` | Unified-diff parser and HTML renderer (`window.GitDiff`) |
+| `renderer/app.js` | View state, working tree, diff detail pane, toolbar |
+| `renderer/history.js`, `rebase.js`, `refs.js`, `conflict.js`, `pulls.js`, `repo.js`, `tabs.js`, `settings.js` | One view or feature each |
+| `renderer/diff.js` | Unified-diff parser, word diff, line patches, HTML renderer (`window.GitDiff`) |
+| `renderer/merge.js` | Conflict-marker parser and resolver (`window.GitMerge`) |
+| `renderer/markdown.js` | Small, escaping Markdown renderer for pull requests (`window.GitMarkdown`) |
 | `renderer/graph.js` | Commit-graph lane layout and SVG generation (`window.GitGraph`) |
-| `renderer/styles.css` | The complete design system |
-| `test/git-layer.test.js` | 17-scenario integration test against a real repository and bare remote |
+| `renderer/styles.css` | The complete design system, dark and light |
+| `test/*.test.js` | Renderer units, git-layer integration, feature integration, askpass round trip |
 
 ### IPC channel reference
 
@@ -346,6 +428,35 @@ commit table beside it.
 - Visible focus rings on every interactive element, and hover states that
   reveal per-row actions instead of permanent chrome
 
+## Credential prompts
+
+git and ssh never read from a terminal under GitDeck (`GIT_TERMINAL_PROMPT=0`).
+Instead, every git process is started with `GIT_ASKPASS` and `SSH_ASKPASS`
+pointing at a small helper:
+
+1. At startup the main process opens a local socket (a named pipe on Windows,
+   a Unix socket in a private temp directory elsewhere) and writes a wrapper
+   script (`askpass.cmd` / `askpass.sh`) that runs `askpass/client.js` with
+   Electron's own Node runtime.
+2. When git or ssh needs an answer, it runs the wrapper with the prompt text.
+   The helper sends the prompt plus a random per-session token to the socket.
+3. The main process checks the token, shows the dialog in the window, and
+   returns what you typed. **Cancel** or **Escape** makes the helper exit with
+   an error, so git stops cleanly.
+
+The dialog adapts to the prompt: passwords, tokens, and passphrases are
+masked with a Show/Hide toggle. Unknown SSH host keys ask for a yes/no
+answer, and **No** is the default. Prompts that arrive together are queued.
+Nothing you type is stored by GitDeck.
+
+Notes:
+- Your configured credential helper (Git Credential Manager, libsecret,
+  osxkeychain) still runs first. The dialog only appears when it has nothing
+  to offer, and git saves accepted credentials there as usual.
+- SSH prompts need OpenSSH 8.4 or newer, which honours `SSH_ASKPASS_REQUIRE=force`.
+  Older ssh only uses the helper when it has no terminal. An `ssh-agent` with
+  the key loaded avoids the prompt entirely.
+
 ## Security model
 
 - `contextIsolation: true`, `nodeIntegration: false`
@@ -355,13 +466,26 @@ commit table beside it.
 - No remote content is ever loaded; the renderer is local files only
 - Repositories are never executed or trusted beyond git's own parsing; the
   app runs git, it does not interpret repository data itself
+- The askpass socket answers only callers presenting the per-session token
+  (constant-time compare), requests are size-capped, and pending prompts are
+  cancelled when the window reloads, crashes, or closes
 
 ## Testing
 
 ```bash
-npm test        # git layer: 17 scenarios, real repo + bare remote
+npm test        # renderer units (9) + git layer (30) + features (21) + askpass round trip (4)
 npm run smoke   # boots the app, asserts zero renderer console errors
 ```
+
+The askpass suite drives a real `git credential fill` through the helper and
+socket, and checks cancellation and a forged token. The git-layer suite also
+covers hunk stage/unstage/discard via `git apply`, amend, stash
+save/list/diff/pop/drop, cherry-pick, revert, abort of a conflicting
+cherry-pick, conflict resolution followed by continuing a merge, and blame.
+
+Both suites run unchanged on Windows and Linux; they also cover non-ASCII
+paths, remote URLs with spaces, merge-conflict detection, and rejection of
+option-like branch names and hashes.
 
 The integration suite covers, in order: repository root resolution,
 untracked detection, staging and index state, staged diff content,
@@ -376,6 +500,33 @@ directory, so the suite is repeatable and side-effect free.
 The smoke run additionally probes the DOM (rendered row, commit, graph node,
 and edge counts) so a rendering regression fails the build, not just a
 console error.
+
+## Running on Windows
+
+Install [Git for Windows](https://git-scm.com/download/win) so `git` is on
+`PATH`, then `npm install && npm start`. git commands run without console
+windows, paths are returned in native `C:\...` form, and CRLF files diff
+cleanly. HTTPS pushes use Git Credential Manager, which ships with Git for
+Windows.
+
+## Running on Linux
+
+`sudo apt install git` (or your distro's equivalent), then `npm install && npm start`.
+
+Ubuntu 23.10+ blocks the unprivileged user namespaces Chromium's sandbox
+needs, and an npm-installed Electron has no setuid `chrome-sandbox` helper.
+GitDeck detects this and starts with `--no-sandbox` (with a warning on
+stderr). To keep the sandbox on instead, make the helper setuid root:
+
+```bash
+sudo chown root:root node_modules/electron/dist/chrome-sandbox
+sudo chmod 4755 node_modules/electron/dist/chrome-sandbox
+```
+
+Set `GITDECK_NO_SANDBOX=1` to force `--no-sandbox` on other locked-down
+systems. git runs with `GIT_TERMINAL_PROMPT=0`, so a push that needs
+credentials fails fast instead of hanging; configure a credential helper
+(`git config --global credential.helper store` or `libsecret`) or use SSH.
 
 ## Running under WSL
 
@@ -396,7 +547,9 @@ applied automatically when `WSL_DISTRO_NAME` or `WSL_INTEROP` is set:
 | Symptom | Cause and fix |
 | --- | --- |
 | Blank window on Linux | No display, or a very old GPU driver. Run with `--disable-gpu` |
-| `git: command not found` | git is not on the `PATH` Electron inherits. Install git or launch from a shell where it is available |
+| `The SUID sandbox helper binary was found, but is not configured correctly` | Locked-down Linux sandbox. See [Running on Linux](#running-on-linux), or set `GITDECK_NO_SANDBOX=1` |
+| Push fails with `terminal prompts disabled` | No credential helper is configured. See [Running on Linux](#running-on-linux) |
+| `git: command not found` | git is not on the `PATH` Electron inherits. Install git, launch from a shell where it is available, or set the git executable in Settings (&#9881;) |
 | Push fails with auth error | GitDeck uses your standard git credential helper. Authenticate once in a terminal (`git push` in the repo) and retry |
 | Commit button disabled | Nothing is staged. Stage at least one file first |
 | Delete branch refused | The branch is not merged. That is git protecting you; merge it first or force in a terminal if you are certain |
@@ -404,14 +557,22 @@ applied automatically when `WSL_DISTRO_NAME` or `WSL_INTEROP` is set:
 
 ## Roadmap
 
-- [ ] Hunk-level staging
-- [ ] Side-by-side diff mode
-- [ ] Stash list, apply, and drop
-- [ ] Interactive rebase support
-- [ ] Conflict resolver view
-- [ ] Repository tab bar for multiple open repositories
-- [ ] Light theme
+- [x] Hunk-level staging
+- [x] Side-by-side diff mode
+- [x] Stash list, apply, and drop
+- [x] Conflict resolver view (whole-side resolution)
+- [x] Credential prompt dialog
+- [x] Line-level staging, word diff, in-place file editing
+- [x] Three-way merge editor
+- [x] Interactive rebase, pull with rebase
+- [x] Tags, branch rename, remote add/remove, reflog, multi-commit cherry-pick
+- [x] GitHub pull requests (list, read, check out, create)
+- [x] Repository tabs, submodules, worktrees, LFS
+- [x] Light theme, configurable git executable
 - [ ] Packaged installers (AppImage, NSIS, dmg)
+- [ ] Bundled git (needs a GPL-compliant packaging decision)
+- [ ] GitLab / Bitbucket pull requests
+- [ ] git-flow
 
 ## Contributing
 

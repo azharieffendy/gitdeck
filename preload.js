@@ -8,4 +8,6 @@ contextBridge.exposeInMainWorld('gitdeck', {
     }
     return ipcRenderer.invoke(channel, payload);
   },
+  // Credential prompts from git/ssh; answer with invoke('gd:askpassReply', {id, answer}).
+  onAskpass: (cb) => { ipcRenderer.on('gd:askpass', (_e, req) => cb(req)); },
 });
