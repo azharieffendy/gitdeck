@@ -6,6 +6,7 @@ const g = require('./git.js');
 // WSL: Chromium sandbox needs user namespaces that WSL may not expose.
 if (process.env.WSL_DISTRO_NAME || process.env.WSL_INTEROP) {
   app.commandLine.appendSwitch('no-sandbox');
+  app.commandLine.appendSwitch('no-zygote');
   app.commandLine.appendSwitch('disable-dev-shm-usage');
   if (process.argv.some((a) => a.indexOf('--shot=') === 0)) {
     app.commandLine.appendSwitch('disable-gpu');

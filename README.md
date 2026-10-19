@@ -384,6 +384,10 @@ applied automatically when `WSL_DISTRO_NAME` or `WSL_INTEROP` is set:
 
 - `--no-sandbox` — Chromium's sandbox needs user namespaces that WSL has
   historically not exposed
+- `--no-zygote` — without this, Chromium's helper processes fail `access()`
+  with `ESRCH` under WSL and flood the terminal with
+  `platform_shared_memory_region_posix` errors; the app still works, but the
+  log spam is unusable. This switch eliminates it entirely.
 - `--disable-dev-shm-usage` — works around `/dev/shm` size and permission
   quirks in some WSL distributions
 
@@ -396,7 +400,7 @@ applied automatically when `WSL_DISTRO_NAME` or `WSL_INTEROP` is set:
 | Push fails with auth error | GitDeck uses your standard git credential helper. Authenticate once in a terminal (`git push` in the repo) and retry |
 | Commit button disabled | Nothing is staged. Stage at least one file first |
 | Delete branch refused | The branch is not merged. That is git protecting you; merge it first or force in a terminal if you are certain |
-| `/dev/shm` errors in logs | Cosmetic on WSL; the mitigation switch is already applied |
+| `platform_shared_memory_region_posix` error flood on WSL | Known Chromium/WSL interop quirk. GitDeck applies `--no-zygote` automatically and the errors do not occur |
 
 ## Roadmap
 
