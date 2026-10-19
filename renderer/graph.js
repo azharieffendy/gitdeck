@@ -2,9 +2,10 @@
 // GitDeck commit graph layout: assigns lanes and builds SVG paths.
 // Exposed as window.GitGraph (classic script).
 (function () {
-  const LANE_W = 14;
-  const ROW_H = 30;
-  const COLORS = ['#58a6ff', '#3fb950', '#bc8cff', '#d29922', '#f778ba', '#39c5cf', '#ff7b72', '#7ee787'];
+  const LANE_W = 12;
+  const ROW_H = 26; // keep in sync with .hrow height in styles.css
+  // Lane colors come from the theme (--lane-0 … --lane-7 in styles.css).
+  const COLORS = [0, 1, 2, 3, 4, 5, 6, 7].map((i) => 'var(--lane-' + i + ')');
 
   function reserveFree(lanes, hash) {
     let i = lanes.indexOf(null);
@@ -79,12 +80,12 @@
     let s = '<svg class="commit-graph" width="' + w + '" height="' + h + '" viewBox="0 0 ' + w + ' ' + h + '">';
     for (const e of lay.edges) {
       const color = COLORS[e.color % COLORS.length];
-      s += '<path d="' + edgePath(e) + '" stroke="' + color + '" fill="none" stroke-width="1.6"/>';
+      s += '<path d="' + edgePath(e) + '" style="stroke:' + color + '" fill="none" stroke-width="2"/>';
     }
     for (const n of lay.nodes) {
       const x = laneX(n.lane), y = rowY(n.row);
       const color = COLORS[n.lane % COLORS.length];
-      s += '<circle cx="' + x + '" cy="' + y + '" r="4" fill="' + color + '" stroke="#0d1117" stroke-width="1"/>';
+      s += '<circle cx="' + x + '" cy="' + y + '" r="4" style="fill:' + color + ';stroke:var(--panel)" stroke-width="1.5"/>';
     }
     s += '</svg>';
     return s;

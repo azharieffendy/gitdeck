@@ -10,19 +10,27 @@ function commitMatches(c, q) {
   return hay.includes(q);
 }
 
+// The log is its own docked panel, always visible next to the working tree.
 function renderHistory() {
+  const pane = $('#log-pane');
+  if (!state.repo) return;
   if (!state.log.length && !state.showReflog) {
-    $('#list-pane').innerHTML = '<div class="empty-state"><div class="empty-title">No commits yet</div>' +
-      '<div class="empty-hint">Make your first commit from the Working Tree view.</div></div>';
+    pane.innerHTML = '<div class="empty-state"><div class="empty-title">No commits yet</div>' +
+      '<div class="empty-hint">Make your first commit from the working tree.</div></div>';
+    $('#log-sub').textContent = '';
     return;
   }
-  $('#list-pane').innerHTML = '<div class="section-header history-head"><span id="history-title"></span><span class="actions">' +
+  const filterFocused = document.activeElement && document.activeElement.id === 'history-filter';
+  pane.innerHTML = '<div class="section-header history-head"><span id="history-title"></span><span class="actions">' +
     (state.showReflog ? '' : '<input id="history-filter" class="filter-input" type="search" placeholder="Filter: message, author, hash, ref" value="' +
       esc(state.historyFilter) + '" spellcheck="false">') +
     '<button class="btn btn-sm' + (state.showReflog ? ' active' : '') + '" id="act-reflog" title="Where HEAD has been">Reflog</button></span></div>' +
     '<div id="history-body" class="history-body"></div>';
   const filter = $('#history-filter');
-  if (filter) filter.oninput = () => { state.historyFilter = filter.value; renderHistoryBody(); };
+  if (filter) {
+    filter.oninput = () => { state.historyFilter = filter.value; renderHistoryBody(); };
+    if (filterFocused) { filter.focus(); filter.setSelectionRange(filter.value.length, filter.value.length); }
+  }
   $('#act-reflog').onclick = () => { state.showReflog = !state.showReflog; renderHistory(); };
   if (state.showReflog) renderReflog(); else renderHistoryBody();
 }
@@ -30,15 +38,29 @@ function renderHistory() {
 function commitRow(c, refsHtml) {
   const sel = state.selectedCommits.includes(c.hash) ? ' selected' : '';
   return '<div class="hrow' + sel + '" data-hash="' + esc(c.hash) + '">' +
-    '<span class="subject">' + refsHtml + esc(c.subject) + '</span><span></span>' +
+    '<span class="subject">' + refsHtml + '<span class="subj-text">' + esc(c.subject) + '</span></span>' +
     '<span class="author">' + esc(c.authorName) + '</span>' +
-    '<span class="date">' + esc(fmtDate(c.timestamp)) + '</span></div>';
+    '<span class="date">' + esc(fmtDate(c.timestamp)) + '</span>' +
+    '<span class="sha">' + esc(c.short || c.hash.slice(0, 7)) + '</span></div>';
+}
+
+// Pseudo-row above the graph: uncommitted changes (or a stopped merge / rebase).
+function worktreeRow() {
+  const st = state.status;
+  if (!st) return '';
+  const n = st.staged.length + st.unstaged.length + st.untracked.length + st.conflicted.length;
+  if (!n && !state.op) return '';
+  const sel = state.view === 'worktree' && !state.selectedCommits.length ? ' selected' : '';
+  const label = state.op ? (OP_LABELS[state.op] || state.op) + ' in progress, ' + n + ' changed files' : 'Local changes (' + n + ')';
+  return '<div class="hrow wt-row' + sel + '" id="wt-row" title="Show the working tree"><span class="subject"><span class="wt-node"></span><span class="subj-text">' +
+    esc(label) + '</span></span><span></span><span></span><span></span></div>';
 }
 
 function renderHistoryBody() {
   const q = state.historyFilter.trim().toLowerCase();
   const shown = q ? state.log.filter((c) => commitMatches(c, q)) : state.log;
-  $('#history-title').textContent = q ? shown.length + ' of ' + state.log.length + ' commits' : 'History (' + state.log.length + ')';
+  $('#history-title').textContent = q ? shown.length + ' of ' + state.log.length + ' commits' : '';
+  $('#log-sub').textContent = state.log.length + ' commits';
   let rows = '';
   for (const c of shown) {
     let refs = c.isHead ? '<span class="ref-badge head">HEAD</span>' : '';
@@ -47,9 +69,19 @@ function renderHistoryBody() {
   }
   // The graph only makes sense for the unfiltered, contiguous history.
   const graph = q ? '' : '<div class="graph-col">' + window.GitGraph.svg(window.GitGraph.layout(state.log)) + '</div>';
-  $('#history-body').innerHTML = shown.length
+  $('#history-body').innerHTML = (q ? '' : worktreeRow()) + (shown.length
     ? '<div class="history-wrap' + (q ? ' no-graph' : '') + '">' + graph + '<div class="history-rows">' + rows + '</div></div>'
-    : '<div class="diff-empty">No commit matches</div>';
+    : '<div class="diff-empty">No commit matches</div>');
+  const wt = $('#wt-row');
+  if (wt) {
+    wt.onclick = () => {
+      state.selectedCommits = [];
+      state.anchorCommit = null;
+      document.querySelectorAll('#history-body .hrow').forEach((r) => r.classList.toggle('selected', r === wt));
+      setView('worktree');
+      detail('');
+    };
+  }
   const order = shown.map((c) => c.hash);
   document.querySelectorAll('#history-body .hrow').forEach((row) => {
     row.onclick = (ev) => onCommitClick(ev, row.dataset.hash, order);
@@ -62,11 +94,11 @@ async function renderReflog() {
   body.innerHTML = '<div class="diff-empty">Loading…</div>';
   try {
     const entries = await api('gd:reflog', { repo: state.repo });
-    if (!state.showReflog || state.view !== 'history') return;
+    if (!state.showReflog) return;
     body.innerHTML = entries.length ? entries.map((r) => '<div class="hrow reflog-row" data-hash="' + esc(r.hash) + '">' +
-      '<span class="subject"><span class="ref-badge local">' + esc(r.selector) + '</span>' + esc(r.subject) + '</span>' +
-      '<span class="blame-hash">' + esc(r.short) + '</span><span></span>' +
-      '<span class="date">' + esc(fmtDate(r.timestamp)) + '</span></div>').join('') : '<div class="diff-empty">Empty reflog</div>';
+      '<span class="subject"><span class="ref-badge local">' + esc(r.selector) + '</span><span class="subj-text">' + esc(r.subject) + '</span></span><span></span>' +
+      '<span class="date">' + esc(fmtDate(r.timestamp)) + '</span>' +
+      '<span class="sha">' + esc(r.short) + '</span></div>').join('') : '<div class="diff-empty">Empty reflog</div>';
     body.querySelectorAll('.reflog-row').forEach((row) => {
       row.onclick = () => {
         body.querySelectorAll('.hrow').forEach((r) => r.classList.toggle('selected', r === row));
@@ -93,10 +125,35 @@ function onCommitClick(ev, hash, order) {
   document.querySelectorAll('#history-body .hrow').forEach((r) => {
     r.classList.toggle('selected', state.selectedCommits.includes(r.dataset.hash));
   });
+  if (state.selectedCommits.length) document.querySelectorAll('#ref-tree .tree-item.selected').forEach((r) => r.classList.remove('selected'));
   state.selectedKey = state.selectedCommits.length === 1 ? 'commit:' + state.selectedCommits[0] : null;
   if (state.selectedCommits.length === 1) showCommitDetail(state.selectedCommits[0]);
   else if (state.selectedCommits.length > 1) showMultiCommit();
   else detail('');
+}
+
+// Select one commit from outside the log (sidebar tree, blame) and keep it in view.
+function selectCommitInLog(hash) {
+  if (state.showReflog) { state.showReflog = false; renderHistory(); }
+  if (state.historyFilter && !state.log.some((c) => c.hash === hash && commitMatches(c, state.historyFilter.trim().toLowerCase()))) {
+    state.historyFilter = '';
+    renderHistory();
+  }
+  state.selectedCommits = [hash];
+  state.anchorCommit = hash;
+  state.selectedKey = 'commit:' + hash;
+  const body = $('#history-body');
+  let target = null;
+  document.querySelectorAll('#history-body .hrow').forEach((r) => {
+    const on = r.dataset.hash === hash;
+    r.classList.toggle('selected', on);
+    if (on) target = r;
+  });
+  if (target && body) {
+    const top = target.offsetTop, h = body.clientHeight; // .history-body is position: relative
+    if (top < body.scrollTop || top > body.scrollTop + h - target.offsetHeight) body.scrollTop = Math.max(0, top - h / 3);
+  }
+  showCommitDetail(hash);
 }
 
 // Several commits: cherry-pick them all, oldest first.

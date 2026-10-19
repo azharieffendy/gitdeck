@@ -79,11 +79,15 @@ function closeTab(repo) {
 
 function showNoRepo() {
   $('#repo-name').textContent = '';
-  $('#branch-pill').textContent = '—';
+  $('#branch-name').textContent = '—';
   $('#ahead-behind').textContent = '';
   $('#head-info').textContent = '';
   $('#wt-count').textContent = '';
   $('#stash-count').textContent = '';
+  ['#tb-staged', '#tb-ahead', '#tb-behind', '#log-sub'].forEach((s) => { $(s).textContent = ''; });
+  document.querySelectorAll('.needs-repo').forEach((b) => { b.disabled = true; });
+  renderRefTree();
+  $('#log-pane').innerHTML = '<div class="empty-state"><div class="empty-hint">The commit log appears here once a repository is open.</div></div>';
   $('#list-pane').innerHTML = '<div class="empty-state"><div class="empty-title">No repository open</div>' +
     '<div class="empty-hint">Open a Git repository to see its working tree, history and branches.</div>' +
     '<button id="btn-open-2" class="btn btn-primary">Open Repository</button></div>';
