@@ -90,8 +90,10 @@ function showNoRepo() {
   $('#log-pane').innerHTML = '<div class="empty-state"><div class="empty-hint">The commit log appears here once a repository is open.</div></div>';
   $('#list-pane').innerHTML = '<div class="empty-state"><div class="empty-title">No repository open</div>' +
     '<div class="empty-hint">Open a Git repository to see its working tree, history and branches.</div>' +
-    '<button id="btn-open-2" class="btn btn-primary">Open Repository</button></div>';
+    '<button id="btn-open-2" class="btn btn-primary">Open Repository</button>' +
+    '<button id="btn-clone-2" class="btn">Clone Repository</button></div>';
   $('#btn-open-2').onclick = openDialog;
+  $('#btn-clone-2').onclick = cloneDialog;
   detail('<div class="empty-state"><div class="empty-title">Nothing selected</div>' +
     '<div class="empty-hint">Pick a file or a commit to inspect it here.</div></div>');
 }

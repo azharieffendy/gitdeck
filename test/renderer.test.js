@@ -3,6 +3,7 @@
 const assert = require('assert');
 const GitDiff = require('../renderer/diff.js');
 const GitGraph = require('../renderer/graph.js');
+const { repoNameFromUrl } = require('../renderer/clone.js');
 
 let passed = 0;
 function ok(name, fn) { fn(); passed++; console.log('  ok -', name); }
@@ -99,6 +100,16 @@ try {
     const commits = [{ hash: 'A', parents: [] }];
     GitGraph.layout(commits);
     assert.deepStrictEqual(Object.keys(commits[0]), ['hash', 'parents']);
+  });
+
+  ok('repoNameFromUrl: https, scp, local and dirty forms', () => {
+    assert.strictEqual(repoNameFromUrl('https://github.com/electron/electron.git'), 'electron');
+    assert.strictEqual(repoNameFromUrl('git@github.com:user/repo.git'), 'repo');
+    assert.strictEqual(repoNameFromUrl('git@host:repo.git'), 'repo');
+    assert.strictEqual(repoNameFromUrl('ssh://git@host:2222/repo.git/'), 'repo');
+    assert.strictEqual(repoNameFromUrl('D:\\repos\\myrepo'), 'myrepo');
+    assert.strictEqual(repoNameFromUrl('https://x.example/a<b'), 'ab');
+    assert.strictEqual(repoNameFromUrl(''), '');
   });
 
   console.log('\nALL ' + passed + ' TESTS PASSED');

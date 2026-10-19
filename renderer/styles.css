@@ -172,6 +172,7 @@ svg { flex: none; }
 /* ---- empty states ---- */
 .empty-state { padding: 48px 24px; text-align: center; color: var(--muted); }
 .empty-state .btn { margin-top: 16px; }
+.empty-state .btn + .btn { margin-left: 8px; }
 .empty-title { font-size: 16px; color: var(--text); margin-bottom: 8px; }
 .empty-hint { font-size: 13px; max-width: 360px; margin: 0 auto; text-wrap: pretty; }
 
@@ -540,6 +541,9 @@ svg { flex: none; }
 .fd-field textarea { height: auto; min-height: 96px; padding: 8px; font-family: var(--mono); resize: vertical; }
 .fd-field input:focus-visible, .fd-field select:focus-visible, .fd-field textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
 .fd-check { align-self: flex-start; }
+.fd-folder { display: flex; gap: 8px; }
+.fd-folder input { flex: 1; min-width: 0; }
+.fd-msg { font-size: 13px; color: var(--text); white-space: pre-line; }
 
 /* scrollbars */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
