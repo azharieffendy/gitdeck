@@ -78,7 +78,7 @@ function wireBranches() {
     if (state.op === 'merge') setView('worktree'); // stopped on conflicts: show them
   });
   onAll('.act-delete', async (d) => {
-    if (!window.confirm('Delete branch ' + d.name + '?')) return;
+    if (!(await confirmDialog('Delete branch ' + d.name + '?', { ok: 'Delete', danger: true }))) return;
     await act('gd:deleteBranch', 'Deleted ' + d.name, { name: d.name });
   });
   onAll('.act-rename', async (d) => {
@@ -89,7 +89,7 @@ function wireBranches() {
 
   $('#act-new-tag').onclick = () => (state.log.length ? createTagDialog(null) : toast('No commits to tag yet', 'error'));
   onAll('.act-del-tag', async (d) => {
-    if (!window.confirm('Delete the local tag ' + d.name + '?')) return;
+    if (!(await confirmDialog('Delete the local tag ' + d.name + '?', { ok: 'Delete', danger: true }))) return;
     await act('gd:deleteTag', 'Deleted tag ' + d.name, { name: d.name });
   });
   onAll('.act-push-tag', async (d) => {
@@ -100,7 +100,8 @@ function wireBranches() {
   });
   onAll('.act-del-remote-tag', async (d) => {
     const remote = await pickRemote('Delete tag ' + d.name + ' on a remote');
-    if (!remote || !window.confirm('Delete tag ' + d.name + ' on ' + remote + '? Others may already use it.')) return;
+    if (!remote || !(await confirmDialog('Delete tag ' + d.name + ' on ' + remote + '? Others may already use it.',
+      { ok: 'Delete', danger: true }))) return;
     toast('Deleting ' + d.name + ' on ' + remote + '…', '', true);
     await act('gd:deleteRemoteTag', 'Deleted ' + d.name + ' on ' + remote, { remote, name: d.name });
   });
@@ -113,7 +114,8 @@ function wireBranches() {
     await act('gd:addRemote', 'Added remote ' + v.name.trim(), { name: v.name.trim(), url: v.url.trim() });
   };
   onAll('.act-rm-remote', async (d) => {
-    if (!window.confirm('Remove remote ' + d.name + '? Its remote-tracking branches are deleted too.')) return;
+    if (!(await confirmDialog('Remove remote ' + d.name + '? Its remote-tracking branches are deleted too.',
+      { ok: 'Remove', danger: true }))) return;
     await act('gd:removeRemote', 'Removed remote ' + d.name, { name: d.name });
   });
 }
@@ -183,8 +185,10 @@ async function showStash(ref) {
       '<button class="btn btn-sm btn-danger" id="act-stash-drop">Drop</button>' + MODE_SLOT + '</div>', diffText, null, () => {
       $('#act-stash-apply').onclick = () => stashAction(ref, 'gd:stashApply', 'Applied ' + ref);
       $('#act-stash-pop').onclick = () => stashAction(ref, 'gd:stashPop', 'Popped ' + ref);
-      $('#act-stash-drop').onclick = () => {
-        if (window.confirm('Drop ' + ref + '? This cannot be undone.')) stashAction(ref, 'gd:stashDrop', 'Dropped ' + ref);
+      $('#act-stash-drop').onclick = async () => {
+        if (await confirmDialog('Drop ' + ref + '? This cannot be undone.', { ok: 'Drop', danger: true })) {
+          stashAction(ref, 'gd:stashDrop', 'Dropped ' + ref);
+        }
       };
     });
   } catch (e) { toast(e.message, 'error'); }

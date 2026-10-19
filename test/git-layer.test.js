@@ -5,6 +5,7 @@ const path = require('path');
 const os = require('os');
 const assert = require('assert');
 const g = require('../git.js');
+const { registerIpc } = require('../ipc.js');
 const GitDiff = require('../renderer/diff.js');
 
 const ROOT = fs.mkdtempSync(path.join(os.tmpdir(), 'gitdeck-test-'));
@@ -122,6 +123,30 @@ function ok(name, fn) {
     await g.run(CLONE, ['add', '-A']);
     await g.run(CLONE, ['commit', '-m', 'from clone']);
     await g.run(CLONE, ['push']);
+  });
+
+  await ok('g.clone returns the new repository path', async () => {
+    const dir = path.join(ROOT, 'clone-by-url');
+    const top = await g.clone(BARE, dir);
+    assert.strictEqual(top, fs.realpathSync.native(dir));
+    assert.ok(fs.existsSync(path.join(dir, '.git', 'HEAD')));
+  });
+
+  await ok('clone rejects option-like URLs and relative targets', async () => {
+    await assert.rejects(() => g.clone('-u/Touch/x', path.join(ROOT, 'c1')), /Invalid repository URL/);
+    await assert.rejects(() => g.clone(BARE, 'relative/clone'), /absolute/);
+  });
+
+  await ok('gd:clone validates names and parent at the IPC boundary', async () => {
+    const channels = {};
+    registerIpc({ handle: (ch, fn) => { channels[ch] = fn; }, dialog: null, shell: null, getWin: () => null });
+    await assert.rejects(() => channels['gd:clone']({ url: BARE, parent: ROOT, name: 'a:b' }), /Invalid directory name/);
+    await assert.rejects(() => channels['gd:clone']({ url: BARE, parent: ROOT, name: 'a?b' }), /Invalid directory name/);
+    await assert.rejects(() => channels['gd:clone']({ url: BARE, parent: ROOT, name: '..' }), /Invalid directory name/);
+    await assert.rejects(() => channels['gd:clone']({ url: BARE, name: 'x' }), /parent directory/i);
+    const top = await channels['gd:clone']({ url: BARE, parent: ROOT, name: 'ipc-clone-ok' });
+    assert.ok(fs.existsSync(path.join(ROOT, 'ipc-clone-ok', '.git')));
+    assert.ok(path.isAbsolute(top));
   });
 
   await ok('pull brings foreign commit', async () => {

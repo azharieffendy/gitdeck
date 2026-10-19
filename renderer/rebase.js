@@ -57,7 +57,8 @@ async function showRebase(base) {
       message: (s.action === 'reword' || s.action === 'squash') && s.message.trim() ? s.message : null,
     }));
     const dropped = plan.filter((s) => s.action === 'drop').length;
-    if (!window.confirm('Rewrite ' + steps.length + ' commits on ' + state.branch + (dropped ? ' and drop ' + dropped : '') + '?')) return;
+    if (!(await confirmDialog('Rewrite ' + steps.length + ' commits on ' + state.branch + (dropped ? ' and drop ' + dropped : '') + '?',
+      { title: 'Interactive rebase', ok: 'Rebase', danger: true }))) return;
     $('#rb-start').disabled = true;
     toast('Rebasing…', '', true);
     try {

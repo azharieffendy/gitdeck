@@ -180,8 +180,9 @@ function wireOpBanner() {
   if (cont) cont.onclick = () => act('gd:continueOp', OP_LABELS[state.op] + ' completed', { op: state.op });
   const abort = $('#act-op-abort');
   if (abort) {
-    abort.onclick = () => {
-      if (!window.confirm('Abort the ' + (OP_LABELS[state.op] || state.op).toLowerCase() + '? Its changes will be discarded.')) return;
+    abort.onclick = async () => {
+      if (!(await confirmDialog('Abort the ' + (OP_LABELS[state.op] || state.op).toLowerCase() + '? Its changes will be discarded.',
+        { title: 'Abort ' + (OP_LABELS[state.op] || state.op), ok: 'Abort', danger: true }))) return;
       act('gd:abortOp', OP_LABELS[state.op] + ' aborted', { op: state.op });
     };
   }
@@ -287,11 +288,12 @@ function wireCommon() {
     b.onclick = (ev) => { ev.stopPropagation(); act('gd:unstagePaths', 'Unstaged', { paths: [b.dataset.path] }); };
   });
   document.querySelectorAll('#list-pane .act-discard').forEach((b) => {
-    b.onclick = (ev) => {
+    b.onclick = async (ev) => {
       ev.stopPropagation();
       const untracked = b.dataset.kind === 'untracked';
       const what = untracked ? 'Delete the untracked file ' : 'Discard all changes to ';
-      if (!window.confirm(what + b.dataset.path + '? This cannot be undone.')) return;
+      if (!(await confirmDialog(what + b.dataset.path + '? This cannot be undone.',
+        { ok: untracked ? 'Delete' : 'Discard', danger: true }))) return;
       act('gd:discard', 'Discarded ' + b.dataset.path,
         untracked ? { untracked: [b.dataset.path] } : { paths: [b.dataset.path] });
     };
@@ -401,7 +403,7 @@ async function onHunkAction(btn) {
       patch = window.GitDiff.linesPatch(file, hi, picked, !!spec.reverse);
     } else patch = window.GitDiff.hunkPatch(file, hi);
   } catch (e) { toast(e.message, 'error'); return; }
-  if (spec.confirm && !window.confirm(spec.confirm)) return;
+  if (spec.confirm && !(await confirmDialog(spec.confirm, { ok: 'Discard', danger: true }))) return;
   try {
     await api('gd:applyPatch', Object.assign({ repo: state.repo, patch }, spec.opts));
     toast(spec.done, 'success');

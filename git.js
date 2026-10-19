@@ -65,6 +65,23 @@ async function hasHead(repoPath) {
   catch { return false; }
 }
 
+// ---- clone -------------------------------------------------------------------
+// Reject URLs or local paths that git could parse as an option.
+function assertCloneUrl(url) {
+  if (typeof url !== 'string' || !url.trim() || url.trim().startsWith('-')) {
+    throw new Error('Invalid repository URL: ' + url);
+  }
+}
+
+// Clone url into an absolute target folder (git creates it; its parent must
+// exist) and return the new repository's toplevel path.
+async function clone(url, dir) {
+  assertCloneUrl(url);
+  if (typeof dir !== 'string' || !path.isAbsolute(dir)) throw new Error('The clone folder must be an absolute path');
+  await run(path.dirname(dir), ['clone', '--', url.trim(), dir]);
+  return toplevel(dir);
+}
+
 // ---- status -------------------------------------------------------------
 // Returns { staged:[], unstaged:[], untracked:[], conflicted:[] } entries {path, x, y, oldPath}
 async function status(repoPath) {
@@ -447,7 +464,7 @@ async function aheadBehind(repoPath) {
 }
 
 module.exports = {
-  run, configureAskpass, configureGit, FIELD, assertBranchName, assertHash, toplevel, hasHead, parseRef, status, stage, stageAll, unstage, unstageAll,
+  run, configureAskpass, configureGit, FIELD, assertBranchName, assertHash, toplevel, hasHead, clone, parseRef, status, stage, stageAll, unstage, unstageAll,
   commit, lastCommitMessage, applyPatch, discard,
   headInfo, diffWorking, diffStaged, commitMeta, commitDiff, log,
   currentBranch, branches, remotes, createBranch, switchBranch, merge,

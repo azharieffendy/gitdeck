@@ -76,7 +76,7 @@ async function showPull(number) {
     const co = $('#act-pr-checkout');
     if (co) {
       co.onclick = async () => {
-        if (!window.confirm('Fetch #' + p.number + ' into branch pr-' + p.number + ' and switch to it?')) return;
+        if (!(await confirmDialog('Fetch #' + p.number + ' into branch pr-' + p.number + ' and switch to it?', { ok: 'Check out' }))) return;
         toast('Fetching #' + p.number + '…', '', true);
         try {
           const branch = await api('gd:ghCheckout', { repo: state.repo, number: p.number });

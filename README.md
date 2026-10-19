@@ -151,6 +151,9 @@ is not affiliated with, derived from, or endorsed by any other Git client.
 - **Stash selected files** only, from the stash view or a file's detail pane
 
 ### Repository
+- **Clone**: clone any repository by URL into a parent directory you pick; the
+  directory name is derived from the URL (and editable), the resulting path is
+  shown live, and the finished clone opens as a tab
 - **Tabs**: several repositories open at once; tabs and per-repository commit
   drafts are kept across switches and restored at launch
 - **Submodules**: status, update one or all, open one in its own tab
@@ -217,6 +220,12 @@ Click **Open Repository** in the toolbar. GitDeck resolves the repository
 root with `git rev-parse --show-toplevel`, so you can select any
 subdirectory of a repository. The branch pill and ahead/behind counters
 appear once a repository is open.
+
+To start from a remote instead, click **Clone**: paste the repository URL,
+pick a parent directory, and adjust the directory name if you like — the
+resulting path is shown live, and the finished clone opens as a tab.
+Destructive actions (discard, delete, drop, abort, history rewrites) ask in
+the app's own styled dialog, never a plain browser pop-up.
 
 ### Staging and committing
 
@@ -328,6 +337,7 @@ GUI.
 | --- | --- | --- |
 | `gd:openDialog` | — | repository toplevel path or null |
 | `gd:openPath` | `{path}` | resolved toplevel |
+| `gd:clone` | `{url, parent, name}` | new repository path |
 | `gd:status` | `{repo}` | `{staged, unstaged, untracked}` |
 | `gd:stagePaths` | `{repo, paths[]}` | — |
 | `gd:stageAll` | `{repo}` | — |
@@ -473,7 +483,7 @@ Notes:
 ## Testing
 
 ```bash
-npm test        # renderer units (9) + git layer (30) + features (21) + askpass round trip (4)
+npm test        # renderer units (10) + git layer (33) + features (21) + askpass round trip (4)
 npm run smoke   # boots the app, asserts zero renderer console errors
 ```
 
@@ -568,6 +578,7 @@ applied automatically when `WSL_DISTRO_NAME` or `WSL_INTEROP` is set:
 - [x] Tags, branch rename, remote add/remove, reflog, multi-commit cherry-pick
 - [x] GitHub pull requests (list, read, check out, create)
 - [x] Repository tabs, submodules, worktrees, LFS
+- [x] Clone by URL; styled confirmation dialogs
 - [x] Light theme, configurable git executable
 - [ ] Packaged installers (AppImage, NSIS, dmg)
 - [ ] Bundled git (needs a GPL-compliant packaging decision)

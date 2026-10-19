@@ -97,7 +97,8 @@ async function showConflict(path) {
   const showBase = $('#act-show-base');
   if (showBase) {
     showBase.onclick = async () => {
-      if (!window.confirm('Rewrite ' + path + ' with base sections? Edits made to it since the conflict are lost.')) return;
+      if (!(await confirmDialog('Rewrite ' + path + ' with base sections? Edits made to it since the conflict are lost.',
+        { ok: 'Rewrite with base', danger: true }))) return;
       try { await api('gd:conflictWithBase', { repo: state.repo, path }); showConflict(path); }
       catch (e) { toast(e.message, 'error'); }
     };
@@ -105,7 +106,8 @@ async function showConflict(path) {
   wireWholeFile(path);
   $('#act-save-resolved').onclick = async () => {
     const value = area.value;
-    if (window.GitMerge.hasMarkers(value) && !window.confirm('The result still has conflict markers. Save it as resolved anyway?')) return;
+    if (window.GitMerge.hasMarkers(value) &&
+      !(await confirmDialog('The result still has conflict markers. Save it as resolved anyway?', { ok: 'Save anyway' }))) return;
     try {
       await api('gd:saveResolved', { repo: state.repo, path, content: crlf ? value.replace(/\r?\n/g, '\r\n') : value });
       toast('Resolved ' + path, 'success');

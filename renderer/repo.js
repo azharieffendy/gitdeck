@@ -65,10 +65,12 @@ function wireRepository() {
   document.querySelectorAll('.act-open-tab').forEach((b) => { b.onclick = () => openRepo(b.dataset.dir); });
   document.querySelectorAll('.act-wt-rm').forEach((b) => {
     b.onclick = async () => {
-      if (!window.confirm('Remove the worktree at ' + b.dataset.dir + '? Its folder is deleted.')) return;
+      if (!(await confirmDialog('Remove the worktree at ' + b.dataset.dir + '? Its folder is deleted.',
+        { ok: 'Remove', danger: true }))) return;
       try { await api('gd:worktreeRemove', { repo: state.repo, dir: b.dataset.dir, force: false }); }
       catch (e) {
-        if (!window.confirm(e.message + '\n\nIt has changes. Remove it anyway and lose them?')) return;
+        if (!(await confirmDialog(e.message + '\n\nIt has changes. Remove it anyway and lose them?',
+          { ok: 'Remove anyway', danger: true }))) return;
         try { await api('gd:worktreeRemove', { repo: state.repo, dir: b.dataset.dir, force: true }); }
         catch (e2) { toast(e2.message, 'error'); return; }
       }

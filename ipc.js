@@ -2,6 +2,7 @@
 // GitDeck IPC channels: every gd:* call the renderer can make. Each handler gets the
 // renderer's payload; results and errors are wrapped by main.js's handle().
 const fs = require('fs');
+const path = require('path');
 const g = require('./git.js');
 const more = require('./git-more.js');
 const gh = require('./github.js');
@@ -20,6 +21,16 @@ function registerIpc({ handle, dialog, shell, getWin }) {
   });
   handle('gd:openPath', (p) => g.toplevel(p.path));
   handle('gd:pickFolder', (p) => pickFolder(p.title || 'Choose folder'));
+  // The renderer sends parent + directory name (SmartGit-style); main joins them.
+  handle('gd:clone', async (p) => {
+    if (typeof p.parent !== 'string' || !p.parent.trim()) throw new Error('Choose a parent directory first');
+    const name = String(p.name || '').trim();
+    // The same class repoNameFromUrl strips: Windows-invalid characters and controls.
+    if (!name || name === '.' || name === '..' || /[\\/:<>:"|?*\x00-\x1f]/.test(name)) {
+      throw new Error('Invalid directory name: ' + name);
+    }
+    return g.clone(p.url, path.join(p.parent, name));
+  });
   handle('gd:setGitPath', async (p) => {
     const exe = (p.path || '').trim();
     if (exe && !fs.existsSync(exe)) throw new Error('No such file: ' + exe);

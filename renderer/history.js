@@ -173,7 +173,7 @@ function showMultiCommit() {
       return '<li><span class="blame-hash">' + esc(c.short) + '</span> ' + esc(c.subject) + '</li>';
     }).join('') + '</ol>');
   $('#act-cherry-many').onclick = async () => {
-    if (!window.confirm('Cherry-pick ' + picked.length + ' commits onto ' + state.branch + '?')) return;
+    if (!(await confirmDialog('Cherry-pick ' + picked.length + ' commits onto ' + state.branch + '?', { ok: 'Cherry-pick' }))) return;
     await act('gd:cherryPick', 'Cherry-picked ' + picked.length + ' commits', { hashes: picked });
     if (state.op) setView('worktree');
   };
@@ -195,12 +195,12 @@ async function showCommitDetail(hash) {
       '<div class="byline">' + esc(m.authorName) + ' &lt;' + esc(m.authorEmail) + '&gt; &#183; ' + esc(fmtDate(Date.parse(m.date))) +
       ' &#183; parents: ' + (m.parents.length ? esc(m.parents.join(' ').slice(0, 24)) : 'root') + '</div></div>', info.diff, null, () => {
       $('#act-cherry').onclick = async () => {
-        if (!window.confirm('Cherry-pick ' + short + ' onto ' + state.branch + '?')) return;
+        if (!(await confirmDialog('Cherry-pick ' + short + ' onto ' + state.branch + '?', { ok: 'Cherry-pick' }))) return;
         await act('gd:cherryPick', 'Cherry-picked ' + short, { hash: m.hash });
         if (state.op) setView('worktree');
       };
       $('#act-revert').onclick = async () => {
-        if (!window.confirm('Create a commit that reverts ' + short + '?')) return;
+        if (!(await confirmDialog('Create a commit that reverts ' + short + '?', { ok: 'Revert' }))) return;
         await act('gd:revert', 'Reverted ' + short, { hash: m.hash });
         if (state.op) setView('worktree');
       };
