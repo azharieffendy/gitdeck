@@ -14,16 +14,23 @@
     <button id="branch-pill" class="branch-pill" title="Current branch">&mdash;</button>
     <span id="ahead-behind" class="ahead-behind"></span>
     <div class="spacer"></div>
+    <button id="btn-fetch" class="btn" title="Fetch all remotes">&#8615; Fetch</button>
     <button id="btn-pull" class="btn" title="Pull from upstream">&#8635; Pull</button>
     <button id="btn-push" class="btn" title="Push to upstream">&#8593; Push</button>
     <button id="btn-refresh" class="btn btn-icon" title="Refresh">&#10227;</button>
+    <button id="btn-theme" class="btn btn-icon" title="Switch theme">&#9680;</button>
+    <button id="btn-settings" class="btn btn-icon" title="Settings">&#9881;</button>
   </header>
+  <div id="tabbar" class="tabbar" role="tablist" hidden></div>
 
   <main id="layout">
     <nav id="sidebar">
       <button class="nav-item active" data-view="worktree">Working Tree <span id="wt-count" class="count"></span></button>
       <button class="nav-item" data-view="history">History</button>
       <button class="nav-item" data-view="branches">Branches</button>
+      <button class="nav-item" data-view="stashes">Stashes <span id="stash-count" class="count"></span></button>
+      <button class="nav-item" data-view="pulls">Pull Requests</button>
+      <button class="nav-item" data-view="repository">Repository</button>
       <div class="sidebar-footer">
         <div id="head-info" class="head-info"></div>
       </div>
@@ -47,8 +54,44 @@
 
   <footer id="statusbar" class="statusbar"></footer>
 
+  <dialog id="cred-dialog" class="cred-dialog" aria-labelledby="cred-title">
+    <form method="dialog" id="cred-form">
+      <div class="cred-head">
+        <span class="cred-icon" aria-hidden="true">&#128273;</span>
+        <div>
+          <div id="cred-title" class="cred-title">Authentication required</div>
+          <div id="cred-target" class="cred-target"></div>
+        </div>
+      </div>
+      <pre id="cred-prompt" class="cred-prompt"></pre>
+      <div id="cred-field" class="cred-field">
+        <input id="cred-input" autocomplete="off" spellcheck="false">
+        <button type="button" id="cred-reveal" class="btn btn-sm" title="Show or hide">Show</button>
+      </div>
+      <div id="cred-note" class="cred-note">Sent only to the Git process that asked. GitDeck does not store it.</div>
+      <div class="cred-actions">
+        <button type="button" id="cred-cancel" class="btn">Cancel</button>
+        <button type="submit" id="cred-ok" class="btn btn-primary">OK</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="form-dialog" class="cred-dialog form-dialog"></dialog>
+
   <script src="diff.js"></script>
   <script src="graph.js"></script>
+  <script src="merge.js"></script>
+  <script src="markdown.js"></script>
+  <script src="credentials.js"></script>
+  <script src="ui.js"></script>
+  <script src="history.js"></script>
+  <script src="rebase.js"></script>
+  <script src="refs.js"></script>
+  <script src="conflict.js"></script>
+  <script src="pulls.js"></script>
+  <script src="repo.js"></script>
+  <script src="settings.js"></script>
+  <script src="tabs.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

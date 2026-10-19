@@ -8,7 +8,7 @@
   "scripts": {
     "start": "electron .",
     "smoke": "electron . --smoke",
-    "test": "node test/git-layer.test.js"
+    "test": "node test/renderer.test.js && node test/git-layer.test.js && node test/features.test.js && node test/askpass.test.js"
   },
   "devDependencies": {
     "electron": "^44.9.0"
