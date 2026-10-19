@@ -7,57 +7,118 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <header id="toolbar">
-    <div class="brand"><span class="brand-mark">&#9670;</span> GitDeck</div>
-    <button id="btn-open" class="btn" title="Open a repository">Open Repository</button>
-    <span id="repo-name" class="repo-name" title=""></span>
-    <button id="branch-pill" class="branch-pill" title="Current branch">&mdash;</button>
-    <span id="ahead-behind" class="ahead-behind"></span>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <symbol id="i-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5A1.5 1.5 0 0 1 4.5 6H9l2 2h8.5A1.5 1.5 0 0 1 21 9.5v8a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5z"/></symbol>
+      <symbol id="i-commit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12h6.5M15.5 12H22M8.5 12a3.5 3.5 0 1 0 7 0a3.5 3.5 0 1 0-7 0"/></symbol>
+      <symbol id="i-push" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"/></symbol>
+      <symbol id="i-pull" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12M7 11l5 5 5-5M5 20h14"/></symbol>
+      <symbol id="i-fetch" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16M12 8v12M8 16l4 4 4-4"/></symbol>
+      <symbol id="i-branch" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v18M15.5 6a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0-5 0M18 8.5c0 6-12 3-12 9"/></symbol>
+      <symbol id="i-merge" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v18M15.5 18a2.5 2.5 0 1 0 5 0a2.5 2.5 0 1 0-5 0M6 6c0 7 9 6 9.6 10"/></symbol>
+      <symbol id="i-stash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h18v4H3zM5 8v11h14V8M10 12h4"/></symbol>
+      <symbol id="i-refresh" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 0 0-14.6-4.5M4 4v3h3M4 13a8 8 0 0 0 14.6 4.5M20 20v-3h-3"/></symbol>
+      <symbol id="i-layout" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h18v16H3zM9 4v16M9 12h12"/></symbol>
+      <symbol id="i-theme" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 0 18zM12 3a9 9 0 0 1 0 18"/></symbol>
+      <symbol id="i-settings" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 12a3 3 0 1 0 6 0a3 3 0 1 0-6 0M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></symbol>
+      <symbol id="i-repo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h12a2 2 0 0 1 2 2v14H7a2 2 0 0 1-2-2zM5 18a2 2 0 0 1 2-2h12"/></symbol>
+      <symbol id="i-remote" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 18h10a4 4 0 0 0 .5-8A6 6 0 0 0 6 9.5A4.3 4.3 0 0 0 7 18z"/></symbol>
+      <symbol id="i-tag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3h8l10 10-8 8L3 11zM7.5 7.5h.01"/></symbol>
+      <symbol id="i-key" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15a4 4 0 1 0 8 0a4 4 0 1 0-8 0M10.8 12.2L20 3M16 7l2.5 2.5M18.5 4.5L21 7"/></symbol>
+      <symbol id="i-grip" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01"/></symbol>
+      <symbol id="i-files" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h8l4 4v14H6zM14 3v4h4"/></symbol>
+    </defs>
+  </svg>
+
+  <header id="toolbar" class="toolbar">
+    <button id="btn-open" class="tb" title="Open a repository"><svg><use href="#i-open"/></svg><span>Open</span></button>
+    <span class="tb-sep"></span>
+    <button id="btn-commit" class="tb needs-repo" title="Write a commit message for the staged files"><svg><use href="#i-commit"/></svg><span>Commit</span><span id="tb-staged" class="tb-badge"></span></button>
+    <button id="btn-push" class="tb needs-repo" title="Push to upstream"><svg><use href="#i-push"/></svg><span>Push</span><span id="tb-ahead" class="tb-badge"></span></button>
+    <button id="btn-pull" class="tb needs-repo" title="Pull from upstream"><svg><use href="#i-pull"/></svg><span>Pull</span><span id="tb-behind" class="tb-badge"></span></button>
+    <button id="btn-fetch" class="tb needs-repo" title="Fetch all remotes"><svg><use href="#i-fetch"/></svg><span>Fetch</span></button>
+    <span class="tb-sep"></span>
+    <button id="btn-branch" class="tb needs-repo" title="Create a branch at HEAD"><svg><use href="#i-branch"/></svg><span>Branch</span></button>
+    <button id="btn-merge" class="tb needs-repo" title="Merge a branch into the current one"><svg><use href="#i-merge"/></svg><span>Merge</span></button>
+    <button id="btn-stash" class="tb needs-repo" title="Stash changes or apply a stash"><svg><use href="#i-stash"/></svg><span>Stash</span></button>
+    <span class="tb-sep"></span>
+    <button id="btn-refresh" class="tb needs-repo" title="Refresh"><svg><use href="#i-refresh"/></svg><span>Refresh</span></button>
     <div class="spacer"></div>
-    <button id="btn-fetch" class="btn" title="Fetch all remotes">&#8615; Fetch</button>
-    <button id="btn-pull" class="btn" title="Pull from upstream">&#8635; Pull</button>
-    <button id="btn-push" class="btn" title="Push to upstream">&#8593; Push</button>
-    <button id="btn-refresh" class="btn btn-icon" title="Refresh">&#10227;</button>
-    <button id="btn-theme" class="btn btn-icon" title="Switch theme">&#9680;</button>
-    <button id="btn-settings" class="btn btn-icon" title="Settings">&#9881;</button>
+    <button id="btn-layout" class="tb" title="Switch panel layout (or drag a panel header onto another panel)"><svg><use href="#i-layout"/></svg><span>Layout</span></button>
+    <button id="btn-theme" class="tb" title="Switch theme"><svg><use href="#i-theme"/></svg><span>Theme</span></button>
+    <button id="btn-settings" class="tb" title="Settings"><svg><use href="#i-settings"/></svg><span>Settings</span></button>
   </header>
   <div id="tabbar" class="tabbar" role="tablist" hidden></div>
 
-  <main id="layout">
-    <nav id="sidebar">
-      <button class="nav-item active" data-view="worktree">Working Tree <span id="wt-count" class="count"></span></button>
-      <button class="nav-item" data-view="history">History</button>
-      <button class="nav-item" data-view="branches">Branches</button>
-      <button class="nav-item" data-view="stashes">Stashes <span id="stash-count" class="count"></span></button>
-      <button class="nav-item" data-view="pulls">Pull Requests</button>
-      <button class="nav-item" data-view="repository">Repository</button>
-      <div class="sidebar-footer">
-        <div id="head-info" class="head-info"></div>
-      </div>
-    </nav>
+  <main id="layout" class="dock">
+    <section class="panel" data-panel="refs">
+      <header class="panel-head" draggable="true" title="Drag onto another panel to swap them">
+        <svg class="grip"><use href="#i-grip"/></svg><span class="panel-title">Repository</span>
+      </header>
+      <nav id="sidebar" class="panel-body">
+        <div class="nav-list">
+          <button class="nav-item active" data-view="worktree"><svg><use href="#i-files"/></svg>Working tree <span id="wt-count" class="count"></span></button>
+          <button class="nav-item" data-view="branches"><svg><use href="#i-branch"/></svg>Branches and tags</button>
+          <button class="nav-item" data-view="stashes"><svg><use href="#i-stash"/></svg>Stashes <span id="stash-count" class="count"></span></button>
+          <button class="nav-item" data-view="pulls"><svg><use href="#i-merge"/></svg>Pull requests</button>
+          <button class="nav-item" data-view="repository"><svg><use href="#i-repo"/></svg>Repository</button>
+        </div>
+        <div id="ref-tree" class="ref-tree"></div>
+      </nav>
+    </section>
 
-    <section id="list-pane">
-      <div class="empty-state">
-        <div class="empty-title">No repository open</div>
-        <div class="empty-hint">Open a Git repository to see its working tree, history and branches.</div>
-        <button id="btn-open-2" class="btn btn-primary">Open Repository</button>
+    <section class="panel" data-panel="log">
+      <header class="panel-head" draggable="true" title="Drag onto another panel to swap them">
+        <svg class="grip"><use href="#i-grip"/></svg><span class="panel-title">Log</span><span id="log-sub" class="panel-sub"></span>
+      </header>
+      <div id="log-pane" class="panel-body">
+        <div class="empty-state"><div class="empty-hint">The commit log appears here once a repository is open.</div></div>
       </div>
     </section>
 
-    <section id="detail-pane">
-      <div class="empty-state">
-        <div class="empty-title">Nothing selected</div>
-        <div class="empty-hint">Pick a file or a commit to inspect it here.</div>
+    <section class="panel" data-panel="list">
+      <header class="panel-head" draggable="true" title="Drag onto another panel to swap them">
+        <svg class="grip"><use href="#i-grip"/></svg><span id="list-title" class="panel-title">Files</span>
+      </header>
+      <div id="list-pane" class="panel-body">
+        <div class="empty-state">
+          <div class="empty-title">No repository open</div>
+          <div class="empty-hint">Open a Git repository to see its working tree, history and branches.</div>
+          <button id="btn-open-2" class="btn btn-primary">Open Repository</button>
+        </div>
       </div>
     </section>
+
+    <section class="panel" data-panel="detail">
+      <header class="panel-head" draggable="true" title="Drag onto another panel to swap them">
+        <svg class="grip"><use href="#i-grip"/></svg><span class="panel-title">Changes</span>
+      </header>
+      <div id="detail-pane" class="panel-body">
+        <div class="empty-state">
+          <div class="empty-title">Nothing selected</div>
+          <div class="empty-hint">Pick a file or a commit to inspect it here.</div>
+        </div>
+      </div>
+    </section>
+
+    <div class="splitter splitter-v" data-split="side"></div>
+    <div class="splitter splitter-v" data-split="right"></div>
+    <div class="splitter splitter-h" data-split="top"></div>
   </main>
 
-  <footer id="statusbar" class="statusbar"></footer>
+  <footer id="statusbar" class="statusbar">
+    <span id="repo-name" class="sb-repo" title=""></span>
+    <button id="branch-pill" class="sb-branch" title="Current branch"><svg><use href="#i-branch"/></svg><span id="branch-name">&mdash;</span></button>
+    <span id="ahead-behind" class="sb-ab" title="Commits ahead / behind upstream"></span>
+    <span id="head-info" class="sb-head"></span>
+    <span id="status-msg" class="sb-msg" role="status"></span>
+    <button id="status-dismiss" class="sb-dismiss" title="Dismiss" hidden>&#215;</button>
+  </footer>
 
   <dialog id="cred-dialog" class="cred-dialog" aria-labelledby="cred-title">
     <form method="dialog" id="cred-form">
       <div class="cred-head">
-        <span class="cred-icon" aria-hidden="true">&#128273;</span>
+        <span class="cred-icon" aria-hidden="true"><svg><use href="#i-key"/></svg></span>
         <div>
           <div id="cred-title" class="cred-title">Authentication required</div>
           <div id="cred-target" class="cred-target"></div>
@@ -92,6 +153,8 @@
   <script src="repo.js"></script>
   <script src="settings.js"></script>
   <script src="tabs.js"></script>
+  <script src="layout.js"></script>
+  <script src="sidebar.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

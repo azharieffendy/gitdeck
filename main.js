@@ -51,7 +51,7 @@ function createWindow() {
     height: 860,
     minWidth: 980,
     minHeight: 600,
-    backgroundColor: '#0d1117',
+    backgroundColor: '#16181c', // Graphite --bg (dark)
     title: 'GitDeck',
     webPreferences: {
       contextIsolation: true,

@@ -43,13 +43,17 @@ async function api(channel, payload) {
   return res.data;
 }
 
+// Status bar message. Errors stay until dismissed or replaced; others fade after 6 s.
 let toastTimer = null;
 function toast(msg, kind, sticky) {
-  const bar = $('#statusbar');
-  bar.textContent = msg;
-  bar.className = 'statusbar ' + (kind || '');
+  const el = $('#status-msg');
+  const clear = () => { el.textContent = ''; el.className = 'sb-msg'; $('#status-dismiss').hidden = true; };
+  el.textContent = msg;
+  el.className = 'sb-msg ' + (kind || '');
+  $('#status-dismiss').hidden = kind !== 'error';
+  $('#status-dismiss').onclick = clear;
   clearTimeout(toastTimer);
-  if (!sticky) toastTimer = setTimeout(() => { bar.textContent = ''; bar.className = 'statusbar'; }, 6000);
+  if (!sticky && kind !== 'error') toastTimer = setTimeout(clear, 6000);
 }
 
 function fmtDate(ts) {
@@ -89,31 +93,43 @@ async function refreshAll() {
 
   $('#repo-name').textContent = state.repo;
   $('#repo-name').title = state.repo;
-  $('#branch-pill').textContent = state.branch;
+  $('#branch-name').textContent = state.branch;
   const ab = state.ab;
-  $('#ahead-behind').textContent = ab ? ('↓' + ab.behind + ' ↑' + ab.ahead) : '';
+  $('#ahead-behind').textContent = ab ? ('↑' + ab.ahead + ' ↓' + ab.behind) : 'no upstream';
   const changes = state.status.staged.length + state.status.unstaged.length +
     state.status.untracked.length + state.status.conflicted.length;
   $('#wt-count').textContent = changes > 0 ? String(changes) : '';
   $('#stash-count').textContent = state.stashes.length ? String(state.stashes.length) : '';
   $('#head-info').textContent = data.head ? (data.head.short + ' ' + data.head.subject) : 'no commits yet';
+  $('#tb-staged').textContent = state.status.staged.length ? String(state.status.staged.length) : '';
+  $('#tb-ahead').textContent = ab && ab.ahead ? String(ab.ahead) : '';
+  $('#tb-behind').textContent = ab && ab.behind ? String(ab.behind) : '';
+  document.querySelectorAll('.needs-repo').forEach((b) => { b.disabled = false; });
 
+  renderHistory();
+  renderRefTree();
   renderView();
 }
 
 // ---------- views ----------
+// The log has its own panel, so views only drive the list panel.
+const VIEW_TITLES = { worktree: 'Files', branches: 'Branches and tags', stashes: 'Stashes', pulls: 'Pull requests', repository: 'Repository' };
+
 function setView(view) {
+  if (view === 'history') view = 'worktree'; // older callers: the log is always visible now
   state.view = view;
   document.querySelectorAll('.nav-item').forEach((el) => {
     el.classList.toggle('active', el.dataset.view === view);
   });
+  $('#list-title').textContent = VIEW_TITLES[view] || 'Files';
+  const wt = $('#wt-row');
+  if (wt) wt.classList.toggle('selected', view === 'worktree' && !state.selectedCommits.length);
   renderView();
 }
 
 function renderView() {
   if (!state.repo) return;
   if (state.view === 'worktree') renderWorktree();
-  else if (state.view === 'history') renderHistory();
   else if (state.view === 'stashes') renderStashes();
   else if (state.view === 'pulls') renderPulls();
   else if (state.view === 'repository') renderRepository();
@@ -441,12 +457,7 @@ async function showBlame(path, back, rev) {
     const now = $('#act-blame-now');
     if (now) now.onclick = () => showBlame(path, back);
     document.querySelectorAll('.blame-hash[data-hash]').forEach((b) => {
-      b.onclick = () => {
-        state.selectedKey = 'commit:' + b.dataset.hash;
-        state.selectedCommits = [b.dataset.hash];
-        setView('history');
-        showCommitDetail(b.dataset.hash);
-      };
+      b.onclick = () => selectCommitInLog(b.dataset.hash);
     });
     document.querySelectorAll('.blame-older').forEach((b) => {
       b.onclick = () => showBlame(path, back, b.dataset.hash + '^');
@@ -518,8 +529,49 @@ function pull() {
   });
 }
 
+// Toolbar: Commit jumps to the message box in the working tree.
+function focusCommit() {
+  if (!state.repo) return;
+  state.selectedCommits = [];
+  setView('worktree');
+  const box = $('#commit-msg');
+  if (box) box.focus();
+}
+
+async function newBranchDialog() {
+  if (!state.repo) return;
+  const v = await formDialog({ title: 'New branch at ' + (state.branch || 'HEAD'), ok: 'Create', fields: [
+    { name: 'name', label: 'Branch name', placeholder: 'feature/name' },
+    { name: 'checkout', label: 'Switch to it', type: 'checkbox', value: true }] });
+  if (!v || !v.name.trim()) return;
+  try {
+    await api('gd:createBranch', { repo: state.repo, name: v.name.trim() });
+    if (v.checkout) await api('gd:switchBranch', { repo: state.repo, name: v.name.trim() });
+    toast('Created ' + v.name.trim(), 'success');
+    await refreshAll();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function mergeDialog() {
+  if (!state.repo) return;
+  const b = state.branchesData || { local: [], remote: [] };
+  const names = b.local.filter((x) => !x.isCurrent).map((x) => x.name).concat(b.remote.map((x) => x.name));
+  if (!names.length) { toast('No other branch to merge', ''); return; }
+  const v = await formDialog({ title: 'Merge into ' + state.branch, ok: 'Merge',
+    note: 'If the merge stops on conflicts, they are listed in the working tree.', fields: [
+      { name: 'name', label: 'Branch', type: 'select', value: names[0], options: names.map((n) => ({ value: n, label: n })) }] });
+  if (!v) return;
+  await act('gd:merge', 'Merged ' + v.name, { name: v.name });
+  if (state.op === 'merge') setView('worktree');
+}
+
 function wireToolbar() {
   $('#btn-open').onclick = openDialog;
+  $('#btn-commit').onclick = focusCommit;
+  $('#btn-branch').onclick = newBranchDialog;
+  $('#btn-merge').onclick = mergeDialog;
+  $('#btn-stash').onclick = () => { if (state.repo) setView('stashes'); };
+  $('#btn-layout').onclick = cycleLayout;
   $('#btn-open-2').onclick = openDialog;
   $('#btn-refresh').onclick = () => state.repo ? refreshAll().catch((e) => toast(e.message, 'error')) : null;
   $('#btn-fetch').onclick = () => networkOp('gd:fetch', 'Fetching…', 'Fetched');
@@ -531,8 +583,11 @@ function wireToolbar() {
   });
 }
 
+document.querySelectorAll('.needs-repo').forEach((b) => { b.disabled = true; });
+initDock();
 wireToolbar();
 wireDetailPane();
+wireRefTree();
 initSettings();
 
 // Restore tabs; ?repo=<path> (GitDeck --path=...) opens that repository too.
@@ -543,9 +598,10 @@ initSettings();
     repo = params.get('repo');
     const view = params.get('view');
     if (['history', 'branches', 'worktree', 'stashes', 'pulls', 'repository'].includes(view)) {
-      state.view = view;
+      state.view = view === 'history' ? 'worktree' : view;
+      $('#list-title').textContent = VIEW_TITLES[state.view];
       document.querySelectorAll('.nav-item').forEach((el) => {
-        el.classList.toggle('active', el.dataset.view === view);
+        el.classList.toggle('active', el.dataset.view === state.view);
       });
     }
   } catch (_e) { /* ignore */ }
