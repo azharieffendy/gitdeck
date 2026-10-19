@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'">
+  <title>GitDeck</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header id="toolbar">
+    <div class="brand"><span class="brand-mark">&#9670;</span> GitDeck</div>
+    <button id="btn-open" class="btn" title="Open a repository">Open Repository</button>
+    <span id="repo-name" class="repo-name" title=""></span>
+    <button id="branch-pill" class="branch-pill" title="Current branch">&mdash;</button>
+    <span id="ahead-behind" class="ahead-behind"></span>
+    <div class="spacer"></div>
+    <button id="btn-pull" class="btn" title="Pull from upstream">&#8635; Pull</button>
+    <button id="btn-push" class="btn" title="Push to upstream">&#8593; Push</button>
+    <button id="btn-refresh" class="btn btn-icon" title="Refresh">&#10227;</button>
+  </header>
+
+  <main id="layout">
+    <nav id="sidebar">
+      <button class="nav-item active" data-view="worktree">Working Tree <span id="wt-count" class="count"></span></button>
+      <button class="nav-item" data-view="history">History</button>
+      <button class="nav-item" data-view="branches">Branches</button>
+      <div class="sidebar-footer">
+        <div id="head-info" class="head-info"></div>
+      </div>
+    </nav>
+
+    <section id="list-pane">
+      <div class="empty-state">
+        <div class="empty-title">No repository open</div>
+        <div class="empty-hint">Open a Git repository to see its working tree, history and branches.</div>
+        <button id="btn-open-2" class="btn btn-primary">Open Repository</button>
+      </div>
+    </section>
+
+    <section id="detail-pane">
+      <div class="empty-state">
+        <div class="empty-title">Nothing selected</div>
+        <div class="empty-hint">Pick a file or a commit to inspect it here.</div>
+      </div>
+    </section>
+  </main>
+
+  <footer id="statusbar" class="statusbar"></footer>
+
+  <script src="diff.js"></script>
+  <script src="graph.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

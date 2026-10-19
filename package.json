@@ -1,0 +1,16 @@
+{
+  "name": "gitdeck",
+  "productName": "GitDeck",
+  "version": "0.1.0",
+  "description": "An original desktop Git client: stage, commit, diff, history graph, branches, push/pull",
+  "main": "main.js",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "smoke": "electron . --smoke",
+    "test": "node test/git-layer.test.js"
+  },
+  "devDependencies": {
+    "electron": "^44.9.0"
+  }
+}
