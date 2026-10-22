@@ -171,6 +171,7 @@ app.whenReady().then(async () => {
           dom = await win.webContents.executeJavaScript(
             "document.querySelectorAll('#list-pane .row').length + ' rows, ' + " +
             "document.querySelectorAll('#files-tree .ft-row').length + ' ft-rows, ' + " +
+            "document.querySelectorAll('.busy-card').length + ' busy-card, ' + " +
             "document.querySelectorAll('.hrow').length + ' commits, ' + " +
             "document.querySelectorAll('.commit-graph circle').length + ' nodes, ' + " +
             "document.querySelectorAll('.commit-graph path').length + ' edges, repo=' + " +

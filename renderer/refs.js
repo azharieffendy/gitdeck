@@ -95,14 +95,12 @@ function wireBranches() {
   onAll('.act-push-tag', async (d) => {
     const remote = await pickRemote('Push tag ' + d.name);
     if (!remote) return;
-    toast('Pushing ' + d.name + '…', '', true);
     await act('gd:pushTag', 'Pushed ' + d.name + ' to ' + remote, { remote, name: d.name });
   });
   onAll('.act-del-remote-tag', async (d) => {
     const remote = await pickRemote('Delete tag ' + d.name + ' on a remote');
     if (!remote || !(await confirmDialog('Delete tag ' + d.name + ' on ' + remote + '? Others may already use it.',
       { ok: 'Delete', danger: true }))) return;
-    toast('Deleting ' + d.name + ' on ' + remote + '…', '', true);
     await act('gd:deleteRemoteTag', 'Deleted ' + d.name + ' on ' + remote, { remote, name: d.name });
   });
 

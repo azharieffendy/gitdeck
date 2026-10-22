@@ -30,6 +30,10 @@ const state = {
 const esc = (s) => window.GitDiff.escapeHtml(String(s == null ? '' : s));
 const OP_LABELS = { merge: 'Merge', 'cherry-pick': 'Cherry-pick', revert: 'Revert', rebase: 'Rebase' };
 
+// The busy card's labels (OP_TITLES / OP_DETAILS / OP_SILENT, busyLabel) live
+// in busy.js next to the tracker, so the tests can cover them; api() below
+// calls that global busyLabel for every gd:* channel.
+
 function loadPref(key, fallback) {
   try { return window.localStorage.getItem('gitdeck.' + key) || fallback; } catch { return fallback; }
 }
@@ -37,10 +41,18 @@ function savePref(key, value) {
   try { window.localStorage.setItem('gitdeck.' + key, value); } catch { /* preferences are optional */ }
 }
 
+// Every gd:* call goes through here, so this is also where the busy card is
+// fed: each call is one tracked operation (busy.js), quick ones never show.
 async function api(channel, payload) {
-  const res = await window.gitdeck.invoke(channel, payload);
-  if (!res || !res.ok) throw new Error((res && res.error) || 'Unknown error');
-  return res.data;
+  const label = busyLabel(channel, payload);
+  const busy = label && window.Busy ? window.Busy.begin(label) : 0;
+  try {
+    const res = await window.gitdeck.invoke(channel, payload);
+    if (!res || !res.ok) throw new Error((res && res.error) || 'Unknown error');
+    return res.data;
+  } finally {
+    if (busy && window.Busy) window.Busy.end(busy);
+  }
 }
 
 // Status bar message. Errors stay until dismissed or replaced; others fade after 6 s.
@@ -518,19 +530,19 @@ async function openDialog() {
   }
 }
 
-// Network operations can wait on the credential dialog: lock the buttons meanwhile.
+// Network operations can wait on the credential dialog: lock the buttons
+// meanwhile; the busy card (busy.js) shows the running operation.
 const NET_BUTTONS = ['#btn-fetch', '#btn-pull', '#btn-push'];
-async function networkOp(channel, busyMsg, okMsg, extra) {
+async function networkOp(channel, okMsg, extra) {
   if (!state.repo) return;
   NET_BUTTONS.forEach((s) => { $(s).disabled = true; });
-  toast(busyMsg, '', true);
   try { await act(channel, okMsg, extra || {}); }
   finally { NET_BUTTONS.forEach((s) => { $(s).disabled = false; }); }
 }
 
 function pull() {
   const rebase = loadPref('pullMode', 'merge') === 'rebase';
-  return networkOp('gd:pull', rebase ? 'Pulling (rebase)…' : 'Pulling…', 'Pulled', { rebase }).then(() => {
+  return networkOp('gd:pull', 'Pulled', { rebase }).then(() => {
     if (state.op) setView('worktree'); // stopped on conflicts
   });
 }
@@ -580,9 +592,9 @@ function wireToolbar() {
   $('#btn-layout').onclick = cycleLayout;
   $('#btn-open-2').onclick = openDialog;
   $('#btn-refresh').onclick = () => state.repo ? refreshAll().catch((e) => toast(e.message, 'error')) : null;
-  $('#btn-fetch').onclick = () => networkOp('gd:fetch', 'Fetching…', 'Fetched');
+  $('#btn-fetch').onclick = () => networkOp('gd:fetch', 'Fetched');
   $('#btn-pull').onclick = pull;
-  $('#btn-push').onclick = () => networkOp('gd:push', 'Pushing…', 'Pushed');
+  $('#btn-push').onclick = () => networkOp('gd:push', 'Pushed');
   $('#branch-pill').onclick = () => setView('branches');
   document.querySelectorAll('.nav-item').forEach((el) => {
     el.onclick = () => {

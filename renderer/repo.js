@@ -52,15 +52,15 @@ async function renderRepository() {
 }
 
 function wireRepository() {
-  const busy = async (msg, ok, channel, extra) => {
-    toast(msg, '', true);
+  // Submodule updates can take a while; the busy card (busy.js) shows them.
+  const busy = async (ok, channel, extra) => {
     await act(channel, ok, extra);
     renderRepository();
   };
   const all = $('#act-sub-all');
-  if (all) all.onclick = () => busy('Updating submodules…', 'Submodules updated', 'gd:submoduleUpdate', {});
+  if (all) all.onclick = () => busy('Submodules updated', 'gd:submoduleUpdate', {});
   document.querySelectorAll('.act-sub-update').forEach((b) => {
-    b.onclick = () => busy('Updating ' + b.dataset.path + '…', 'Updated ' + b.dataset.path, 'gd:submoduleUpdate', { path: b.dataset.path });
+    b.onclick = () => busy('Updated ' + b.dataset.path, 'gd:submoduleUpdate', { path: b.dataset.path });
   });
   document.querySelectorAll('.act-open-tab').forEach((b) => { b.onclick = () => openRepo(b.dataset.dir); });
   document.querySelectorAll('.act-wt-rm').forEach((b) => {

@@ -60,7 +60,7 @@ async function cloneDialog() {
   cloning = true;
   const buttons = document.querySelectorAll('#btn-clone, #btn-clone-2');
   buttons.forEach((b) => { b.disabled = true; });
-  toast('Cloning ' + name + '…', '', true);
+  // The busy card (busy.js) shows "Cloning repository" for the whole clone.
   try {
     const repo = await api('gd:clone', { url, parent: v.parent, name });
     toast('Cloned into ' + repo, 'success');

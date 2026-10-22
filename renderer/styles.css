@@ -466,6 +466,45 @@ svg { flex: none; }
 .sb-dismiss { width: 20px; height: 20px; background: none; border: none; border-radius: var(--radius); color: var(--muted); font-size: 15px; cursor: pointer; }
 .sb-dismiss:hover { background: var(--raised); color: var(--text); }
 
+/* ---- busy indicator: thin top bar + centered card while git runs ---- */
+/* Shown by body.busy (busy.js) once an operation outlives its delay; both are
+   pure feedback — pointer-events keep every click passing through them. */
+.busy-bar {
+  position: fixed; top: 0; left: 0; right: 0; height: 2px; z-index: 90;
+  pointer-events: none; overflow: hidden; opacity: 0; transition: opacity .15s;
+}
+.busy-bar::before {
+  content: ''; position: absolute; top: 0; bottom: 0; left: -35%; width: 35%;
+  border-radius: 2px; background: var(--accent);
+  animation: busy-slide 1.1s linear infinite;
+}
+.busy-card {
+  position: fixed; left: 50%; top: 40%; transform: translate(-50%, -50%);
+  display: flex; align-items: center; gap: 10px; max-width: 70vw;
+  padding: 10px 16px; background: var(--raised); color: var(--text);
+  border: 1px solid var(--border); border-radius: 10px;
+  box-shadow: 0 10px 28px rgb(0 0 0 / .25);
+  font-size: 13px; z-index: 90; pointer-events: none;
+  opacity: 0; visibility: hidden; transition: opacity .12s, visibility .12s;
+}
+.busy-spin {
+  flex: none; width: 16px; height: 16px; border-radius: 50%;
+  border: 2px solid var(--border); border-top-color: var(--accent);
+  animation: busy-rot .8s linear infinite;
+}
+#busy-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+body.busy .busy-bar { opacity: 1; }
+body.busy .busy-card { opacity: 1; visibility: visible; }
+/* While the credential dialog waits on the user (credentials.js), git is idle. */
+body.busy.busy-paused .busy-bar { opacity: 0; }
+body.busy.busy-paused .busy-card { opacity: 0; visibility: hidden; }
+@keyframes busy-slide { to { left: 100%; } }
+@keyframes busy-rot { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .busy-bar::before { animation-duration: 3s; }
+  .busy-spin { animation-duration: 1.6s; }
+}
+
 /* ---- in-progress merge / cherry-pick / revert ---- */
 .op-banner {
   display: flex; align-items: center; justify-content: space-between; gap: 12px;

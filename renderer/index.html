@@ -119,6 +119,11 @@
     <button id="status-dismiss" class="sb-dismiss" title="Dismiss" hidden>&#215;</button>
   </footer>
 
+  <div id="busy-bar" class="busy-bar" aria-hidden="true"></div>
+  <div id="busy-card" class="busy-card" role="status" aria-live="polite">
+    <span class="busy-spin" aria-hidden="true"></span><span id="busy-label"></span>
+  </div>
+
   <dialog id="cred-dialog" class="cred-dialog" aria-labelledby="cred-title">
     <form method="dialog" id="cred-form">
       <div class="cred-head">
@@ -149,6 +154,7 @@
   <script src="merge.js"></script>
   <script src="markdown.js"></script>
   <script src="credentials.js"></script>
+  <script src="busy.js"></script>
   <script src="ui.js"></script>
   <script src="history.js"></script>
   <script src="rebase.js"></script>

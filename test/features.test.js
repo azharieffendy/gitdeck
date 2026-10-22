@@ -13,6 +13,7 @@ const gh = require('../github.js');
 const GitDiff = require('../renderer/diff.js');
 const GitMerge = require('../renderer/merge.js');
 const GitMarkdown = require('../renderer/markdown.js');
+const { createBusyTracker } = require('../renderer/busy.js');
 
 const ROOT = fs.mkdtempSync(path.join(os.tmpdir(), 'gitdeck-feat-'));
 const REPO = path.join(ROOT, 'repo');
@@ -103,6 +104,84 @@ function ok(name, fn) {
   await ok('parseWorktrees marks the main worktree', () => {
     const list = more.parseWorktrees('worktree /a\nHEAD 1\nbranch refs/heads/main\n\nworktree /b\nHEAD 2\ndetached\n');
     assert.deepStrictEqual(list.map((w) => [w.isMain, w.branch, w.detached]), [[true, 'main', false], [false, null, true]]);
+  });
+
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  await ok('busy tracker never shows an operation that ends within its delay', async () => {
+    const events = [];
+    const t = createBusyTracker((s) => events.push(s), { delay: 8 });
+    const fast = t.begin('Fast');
+    t.end(fast);
+    await sleep(25); // well past the delay: still no event, no lingering timer
+    assert.deepStrictEqual(events, []);
+    assert.strictEqual(t.count, 0);
+  });
+
+  await ok('busy tracker shows slow operations and reports the newest label', async () => {
+    const events = [];
+    const t = createBusyTracker((s) => events.push(s), { delay: 8, minDisplay: 0 });
+    const a = t.begin('Fetching');
+    await sleep(25); // outlives the delay -> becomes visible
+    const b = t.begin('Committing'); // newer label wins while visible
+    t.end(a); // one still running: stays visible on the newer label
+    t.end(999); // unknown id is ignored
+    assert.strictEqual(t.count, 1);
+    t.end(b); // last one ends -> hidden
+    assert.deepStrictEqual(events, [
+      { visible: true, label: 'Fetching', count: 1 },
+      { visible: true, label: 'Committing', count: 2 },
+      { visible: true, label: 'Committing', count: 1 },
+      { visible: false, label: '', count: 0 },
+    ]);
+  });
+
+  await ok('busy tracker picks the newest label when the delay fires on overlaps', async () => {
+    const events = [];
+    const t = createBusyTracker((s) => events.push(s), { delay: 15, minDisplay: 0 });
+    const a = t.begin('A');
+    const b = t.begin('B'); // both begin inside the delay window
+    await sleep(40); // timer fires with whatever is running: latest label, count 2
+    t.end(a);
+    t.end(b);
+    assert.deepStrictEqual(events, [
+      { visible: true, label: 'B', count: 2 },
+      { visible: true, label: 'B', count: 1 },
+      { visible: false, label: '', count: 0 },
+    ]);
+  });
+
+  await ok('busy tracker holds the card for its minimum display time', async () => {
+    const events = [];
+    const t = createBusyTracker((s) => events.push(s), { delay: 5, minDisplay: 80 });
+    const a = t.begin('Slow-ish');
+    await sleep(12); // visible since ~5ms
+    t.end(a); // shown only briefly: held until ~85ms, no instant hide
+    await sleep(25); // ~37ms in: still held
+    assert.strictEqual(events.length, 1);
+    assert.strictEqual(events[0].visible, true);
+    await sleep(80); // ~117ms in: the hold has ended
+    assert.deepStrictEqual(events, [
+      { visible: true, label: 'Slow-ish', count: 1 },
+      { visible: false, label: '', count: 0 },
+    ]);
+  });
+
+  await ok('an operation begun during the hold cancels the hide, so the card never flashes', async () => {
+    const events = [];
+    const t = createBusyTracker((s) => events.push(s), { delay: 5, minDisplay: 80 });
+    const a = t.begin('A');
+    await sleep(12);
+    t.end(a); // enters the hold
+    const b = t.begin('B'); // cancels the hold: the card simply stays up
+    await sleep(100); // past where the hold would have hidden it
+    assert.strictEqual(events[events.length - 1].visible, true); // never hid
+    t.end(b); // past the minimum display time: hides at once
+    assert.deepStrictEqual(events, [
+      { visible: true, label: 'A', count: 1 },
+      { visible: true, label: 'B', count: 1 },
+      { visible: false, label: '', count: 0 },
+    ]);
   });
 
   // ---- git integration --------------------------------------------------------------

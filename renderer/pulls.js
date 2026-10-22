@@ -77,7 +77,6 @@ async function showPull(number) {
     if (co) {
       co.onclick = async () => {
         if (!(await confirmDialog('Fetch #' + p.number + ' into branch pr-' + p.number + ' and switch to it?', { ok: 'Check out' }))) return;
-        toast('Fetching #' + p.number + '…', '', true);
         try {
           const branch = await api('gd:ghCheckout', { repo: state.repo, number: p.number });
           toast('Switched to ' + branch, 'success');
@@ -101,7 +100,6 @@ async function newPullDialog() {
       { name: 'draft', label: 'Create as draft', type: 'checkbox', value: false }] });
   if (!v) return;
   if (!v.title.trim()) { toast('A pull request needs a title', 'error'); return; }
-  toast('Creating pull request…', '', true);
   try {
     const p = await api('gd:ghCreatePull', { repo: state.repo, title: v.title, body: v.body, head: v.head, base: v.base.trim(), draft: v.draft });
     toast('Created #' + p.number, 'success');
