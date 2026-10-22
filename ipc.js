@@ -57,12 +57,34 @@ function registerIpc({ handle, dialog, shell, getWin }) {
     head: await g.commit(p.repo, p.message, { amend: !!p.amend }),
     status: await g.status(p.repo),
   }));
+  handle('gd:commitPaths', async (p) => ({
+    head: await more.commitPaths(p.repo, p.message, p.paths || [], { amend: !!p.amend, untracked: p.untracked || [] }),
+    status: await g.status(p.repo),
+  }));
   handle('gd:lastMessage', (p) => g.lastCommitMessage(p.repo));
   handle('gd:commitTemplate', (p) => more.commitTemplate(p.repo));
   handle('gd:applyPatch', (p) => g.applyPatch(p.repo, p.patch, { cached: !!p.cached, reverse: !!p.reverse }));
   handle('gd:discard', (p) => g.discard(p.repo, p.paths || [], p.untracked || []));
   handle('gd:readFile', (p) => more.readWorkingFile(p.repo, p.path));
   handle('gd:writeFile', (p) => more.writeWorkingFile(p.repo, p.path, p.content));
+  // The Files view: the whole tree, and one file's content, working tree or any commit.
+  handle('gd:listFiles', (p) => more.listFiles(p.repo, p.rev || null, { ignored: !!p.ignored }));
+  handle('gd:readFileAt', (p) => more.readFileAt(p.repo, p.path, p.rev || null));
+  handle('gd:setFileFlag', (p) => more.setFileFlag(p.repo, p.paths || [], p.flag, !!p.on));
+  handle('gd:ignorePaths', (p) => more.ignorePaths(p.repo, p.paths || []));
+  handle('gd:moveFile', (p) => more.moveFile(p.repo, p.from, p.to));
+  handle('gd:removeFiles', (p) => more.removeFiles(p.repo, p.paths || [], { cached: !!p.cached }));
+  handle('gd:fileLog', (p) => more.fileLog(p.repo, p.path));
+  // Delete goes to the system trash, so it can be undone outside GitDeck.
+  handle('gd:trashFiles', async (p) => {
+    const paths = p.paths || [];
+    paths.forEach((rel) => more.assertRelPath(rel.replace(/\/$/, '')));
+    for (const rel of paths) await shell.trashItem(more.safeRepoPath(p.repo, rel.replace(/\/$/, '')));
+  });
+  handle('gd:revealFile', (p) => {
+    more.assertRelPath(p.path.replace(/\/$/, ''));
+    shell.showItemInFolder(more.safeRepoPath(p.repo, p.path.replace(/\/$/, '')));
+  });
   handle('gd:diffWorking', (p) => g.diffWorking(p.repo, p.path));
   handle('gd:diffStaged', (p) => g.diffStaged(p.repo, p.path));
   handle('gd:blame', (p) => g.blame(p.repo, p.path, p.rev || null));

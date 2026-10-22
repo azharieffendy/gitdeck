@@ -273,6 +273,166 @@ function ok(name, fn) {
     assert.strictEqual(log[0].parents.length, 1);
   });
 
+  await ok('file browser: list and read files, working tree and at a revision', async () => {
+    fs.writeFileSync(path.join(REPO, '.gitignore'), 'ignored.txt\n');
+    write('dir/nested/deep.txt', 'deep\n');
+    fs.writeFileSync(path.join(REPO, 'bin.dat'), Buffer.from([0x00, 0x01, 0x02, 0x03]));
+    write('ignored.txt', 'not listed\n');
+    const parent = (await g.run(REPO, ['rev-parse', 'HEAD'])).trim();
+    const head = await commitAll('add deep, binary and ignore');
+    assert.strictEqual(head.length, 40);
+
+    // Working tree: tracked + untracked, ignored files left out.
+    const wt = await more.listFiles(REPO, null);
+    const paths = wt.files.map((f) => f.path);
+    assert.ok(paths.includes('a.txt') && paths.includes('dir/nested/deep.txt'));
+    assert.ok(!paths.includes('ignored.txt'));
+    assert.strictEqual(wt.rev, null);
+    assert.strictEqual(wt.truncated, false);
+
+    // At the previous commit the new files are gone; blob sizes are included.
+    const at = await more.listFiles(REPO, parent);
+    const atPaths = at.files.map((f) => f.path);
+    assert.ok(!atPaths.includes('dir/nested/deep.txt') && atPaths.includes('a.txt'));
+    assert.strictEqual(at.rev, parent);
+    assert.ok(at.files.find((f) => f.path === 'a.txt').size > 0);
+
+    // Reading: same content from disk and from a commit; binaries are reported.
+    const fromDisk = await more.readFileAt(REPO, 'a.txt', null);
+    const atRev = await more.readFileAt(REPO, 'a.txt', parent);
+    assert.strictEqual(fromDisk.binary, false);
+    assert.strictEqual(atRev.content, fromDisk.content);
+    assert.ok(atRev.content.length > 0);
+    assert.strictEqual((await more.readFileAt(REPO, 'dir/nested/deep.txt', head)).content, 'deep\n');
+    assert.strictEqual((await more.readFileAt(REPO, 'bin.dat', head)).binary, true);
+    await assert.rejects(more.readFileAt(REPO, 'dir/nested/deep.txt', parent), /is not in/);
+
+    // Paths stay inside the tree; revisions must be hashes.
+    await assert.rejects(more.readFileAt(REPO, '../outside.txt', null), /Invalid file path/);
+    await assert.rejects(more.readFileAt(REPO, 'a.txt', 'HEAD'), /Invalid commit hash/);
+    await assert.rejects(more.listFiles(REPO, 'HEAD'), /Invalid commit hash/);
+  });
+
+  await ok('file browser: ignored files, assume-unchanged and skip-worktree flags', async () => {
+    write('build/out/gen.js', 'generated\n');
+    fs.appendFileSync(path.join(REPO, '.gitignore'), 'build/\n');
+    await commitAll('ignore build');
+    write('loose.txt', 'untracked\n');
+    const byPath = (list) => new Map(list.files.map((f) => [f.path, f]));
+
+    // Ignored files only when asked; an ignored directory is one entry, not scanned.
+    const plain = byPath(await more.listFiles(REPO, null));
+    assert.ok(!plain.has('ignored.txt') && !plain.has('build/'));
+    const all = byPath(await more.listFiles(REPO, null, { ignored: true }));
+    assert.strictEqual(all.get('ignored.txt').state, 'ignored');
+    assert.strictEqual(all.get('build/').state, 'ignored');
+    assert.strictEqual(all.get('build/').dir, true);
+    assert.ok(!all.has('build/out/gen.js'));
+    assert.strictEqual(all.get('a.txt').state, 'tracked');
+    assert.strictEqual(all.get('loose.txt').state, 'untracked');
+
+    await more.setFileFlag(REPO, ['a.txt'], 'assume', true);
+    await more.setFileFlag(REPO, ['dir/nested/deep.txt'], 'skip', true);
+    let flags = byPath(await more.listFiles(REPO, null));
+    assert.strictEqual(flags.get('a.txt').assume, true);
+    assert.strictEqual(flags.get('dir/nested/deep.txt').skip, true);
+    assert.ok(!flags.get('bin.dat').assume && !flags.get('bin.dat').skip);
+    await more.setFileFlag(REPO, ['a.txt'], 'assume', false);
+    await more.setFileFlag(REPO, ['dir/nested/deep.txt'], 'skip', false);
+    flags = byPath(await more.listFiles(REPO, null));
+    assert.ok(!flags.get('a.txt').assume && !flags.get('dir/nested/deep.txt').skip);
+    await assert.rejects(more.setFileFlag(REPO, ['a.txt'], 'bogus', true), /Unknown file flag/);
+  });
+
+  await ok('file browser: ignore, move, remove and file log', async () => {
+    await more.ignorePaths(REPO, ['loose.txt']);
+    assert.ok(read('.gitignore').split('\n').includes('/loose.txt'));
+    assert.ok(!(await more.listFiles(REPO, null)).files.some((f) => f.path === 'loose.txt'));
+    await assert.rejects(more.ignorePaths(REPO, ['../x']), /Invalid file path/);
+
+    // Tracked files move with git mv; untracked ones are renamed on disk.
+    await more.moveFile(REPO, 'dir/nested/deep.txt', 'moved/deep.txt');
+    assert.strictEqual(read('moved/deep.txt'), 'deep\n');
+    const st = await g.status(REPO);
+    assert.ok(st.staged.some((e) => e.x === 'R' && e.path === 'moved/deep.txt'));
+    write('scratch.txt', 's\n');
+    await more.moveFile(REPO, 'scratch.txt', 'scratch2.txt');
+    assert.ok(fs.existsSync(path.join(REPO, 'scratch2.txt')) && !fs.existsSync(path.join(REPO, 'scratch.txt')));
+    await assert.rejects(more.moveFile(REPO, 'scratch2.txt', 'a.txt'), /already exists/);
+    await commitAll('move deep');
+
+    // Remove from the index only: the file stays on disk, untracked.
+    await more.removeFiles(REPO, ['bin.dat'], { cached: true });
+    assert.ok(fs.existsSync(path.join(REPO, 'bin.dat')));
+    assert.ok((await g.status(REPO)).staged.some((e) => e.x === 'D' && e.path === 'bin.dat'));
+    await more.removeFiles(REPO, ['scratch2.txt'], {});
+    assert.ok(!fs.existsSync(path.join(REPO, 'scratch2.txt')));
+    await commitAll('remove scratch');
+
+    // Local or staged changes do not block a confirmed remove.
+    write('rm-mod.txt', 'm\n');
+    write('rm-staged.txt', 's\n');
+    await commitAll('remove targets');
+    write('rm-mod.txt', 'm2\n');
+    write('rm-staged.txt', 's2\n');
+    await g.stage(REPO, ['rm-staged.txt']);
+    write('rm-staged.txt', 's3\n');
+    await more.removeFiles(REPO, ['rm-mod.txt'], {});
+    assert.ok(!fs.existsSync(path.join(REPO, 'rm-mod.txt')));
+    await more.removeFiles(REPO, ['rm-staged.txt'], { cached: true });
+    assert.strictEqual(read('rm-staged.txt'), 's3\n');
+    const rmSt = await g.status(REPO);
+    assert.deepStrictEqual(rmSt.staged.filter((e) => e.x === 'D').map((e) => e.path).sort(), ['rm-mod.txt', 'rm-staged.txt']);
+    fs.rmSync(path.join(REPO, 'rm-staged.txt'));
+    await commitAll('remove changed files');
+
+    // The log of one file follows it across the rename.
+    const hist = await more.fileLog(REPO, 'moved/deep.txt');
+    assert.deepStrictEqual(hist.map((c) => c.subject), ['move deep', 'add deep, binary and ignore']);
+    assert.strictEqual(hist[0].hash.length, 40);
+    assert.ok(hist[0].authorName && hist[0].timestamp > 0);
+  });
+
+  await ok('file browser: commit only the chosen folder', async () => {
+    write('pick/a.txt', 'a\n');
+    write('pick/sub/b.txt', 'b\n');
+    write('other/c.txt', 'c\n');
+    write('pick/[weird].txt', 'w\n');
+    await commitAll('folders');
+    write('pick/a.txt', 'a2\n');           // modified
+    write('pick/new.txt', 'n\n');          // untracked
+    fs.rmSync(path.join(REPO, 'pick/sub/b.txt')); // deleted
+    write('pick/[weird].txt', 'w2\n');    // glob characters stay literal
+    write('other/c.txt', 'c2\n');
+    await g.stage(REPO, ['other/c.txt']);  // staged elsewhere: must stay staged
+    const picked = ['pick/a.txt', 'pick/new.txt', 'pick/sub/b.txt', 'pick/[weird].txt'];
+    const head = await more.commitPaths(REPO, 'pick only', picked, { untracked: ['pick/new.txt'] });
+    assert.strictEqual(head.subject, 'pick only');
+    const files = (await g.run(REPO, ['show', '--name-status', '--format=', 'HEAD'])).trim().split('\n').sort();
+    assert.deepStrictEqual(files, ['A\tpick/new.txt', 'D\tpick/sub/b.txt', 'M\tpick/[weird].txt', 'M\tpick/a.txt']);
+    const st = await g.status(REPO);
+    assert.deepStrictEqual(st.staged.map((e) => e.path), ['other/c.txt']);
+    await assert.rejects(more.commitPaths(REPO, '', ['other/c.txt']), /message is empty/);
+    await assert.rejects(more.commitPaths(REPO, 'x', []), /No files selected/);
+    await assert.rejects(more.commitPaths(REPO, 'x', ['../c.txt']), /Invalid file path/);
+    await commitAll('other');
+
+    // A failed commit leaves the untracked picks untracked, not staged.
+    const hook = path.join(REPO, '.git', 'hooks', 'pre-commit');
+    fs.mkdirSync(path.dirname(hook), { recursive: true });
+    fs.writeFileSync(hook, '#!/bin/sh\nexit 1\n', { mode: 0o755 });
+    write('pick/hooked.txt', 'h\n');
+    try {
+      await assert.rejects(more.commitPaths(REPO, 'blocked', ['pick/hooked.txt'], { untracked: ['pick/hooked.txt'] }));
+      const after = await g.status(REPO);
+      assert.deepStrictEqual(after.staged, []);
+      assert.deepStrictEqual(after.untracked.map((e) => e.path), ['pick/hooked.txt']);
+    } finally {
+      fs.rmSync(hook);
+      fs.rmSync(path.join(REPO, 'pick/hooked.txt'));
+    }
+  });
+
   console.log('\nALL ' + passed + ' FEATURE TESTS PASSED');
 })().catch((e) => { console.error('\nFAILED after ' + passed + ' passes:', e.stack || e.message); process.exit(1); })
   .finally(() => { try { fs.rmSync(ROOT, { recursive: true, force: true }); } catch { /* best effort */ } });

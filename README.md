@@ -76,6 +76,39 @@ is not affiliated with, derived from, or endorsed by any other Git client.
 - **Blame**: per-line commit, author, and date for any tracked file; click a
   hash to jump to that commit in History
 
+### File browser
+- **Files view**: a **Directories** pane with every folder in the repository
+  (each showing its change count, file count and most important change) above
+  the **Files** list of the chosen folder; folders expand and collapse
+  (remembered across sessions). Drag the grip between the panes (or arrow-key
+  it) to resize, double-click to reset
+- **Subfolders** (on by default) lists files from the chosen folder and every
+  folder below it; turn it off to list that folder's own files only
+- **Commit the chosen folder**: the commit box under the list commits the
+  ticked changes shown for that folder, and only those (`git commit --only`).
+  Untick a file to leave it out; changes elsewhere, staged or not, stay as
+  they are. Untracked files are added; the message and Amend are shared with
+  the working tree
+- **State filters**: show or hide changed, unchanged, untracked, ignored and
+  assume-unchanged / skip-worktree files (remembered). Ignored folders are
+  listed but never scanned. The tree is tinted red when changed files are
+  hidden and yellow while a name filter is active
+- A **name filter** (Ctrl+F) with an optional **regular expression** mode and
+  remembered patterns; a name match always shows, dimmed when its state is
+  hidden
+- Click any file to read it: line-numbered content, file size, and clean handling
+  of binary and very large files
+- Working-tree mode shows each file's change badge with **Diff**, **Blame**,
+  **Log** and **Edit** actions
+- **Context menu** (right-click or the Menu key), by state: stage, unstage,
+  discard; ignore or delete (to the trash) untracked files; rename / move (staged
+  with `git mv`), remove, remove from the index; toggle **assume unchanged** and
+  **skip worktree**; blame, file log (follows renames), reveal in the file
+  manager, copy path. A **.gitignore** button opens the ignore file for editing
+- **Browse any commit's tree**: from a commit in History, press **Files** to see
+  the repository as of that commit, read-only, with blame at that revision; one
+  click returns to the working tree
+
 ### Stashes
 - Stash the working tree with an optional message, optionally including
   untracked files
@@ -324,6 +357,11 @@ GUI.
 | `renderer/index.html` | Page shell with a strict CSP |
 | `renderer/app.js` | View state, working tree, diff detail pane, toolbar |
 | `renderer/history.js`, `rebase.js`, `refs.js`, `conflict.js`, `pulls.js`, `repo.js`, `tabs.js`, `settings.js` | One view or feature each |
+| `renderer/files.js` | The Files view: directory pane and file list, state and name filters, file viewer, per-commit browsing |
+| `renderer/files-actions.js` | The Files view's context menu, its commands, and the file Log |
+| `renderer/files-commit.js` | The Files view's commit box: commits the ticked changes of the chosen folder |
+| `renderer/layout.js` | Docked panels: drag a header to swap panels, drag or arrow-key the splitters to resize |
+| `renderer/sidebar.js` | Branch / tag / stash tree; drag the grip under a group (or arrow-key it) to resize it, double-click to fit |
 | `renderer/diff.js` | Unified-diff parser, word diff, line patches, HTML renderer (`window.GitDiff`) |
 | `renderer/merge.js` | Conflict-marker parser and resolver (`window.GitMerge`) |
 | `renderer/markdown.js` | Small, escaping Markdown renderer for pull requests (`window.GitMarkdown`) |
@@ -344,7 +382,17 @@ GUI.
 | `gd:unstagePaths` | `{repo, paths[]}` | — |
 | `gd:unstageAll` | `{repo}` | — |
 | `gd:commit` | `{repo, message}` | new head info |
+| `gd:commitPaths` | `{repo, message, paths[], untracked?[], amend?}` | `{head, status}` (commits only those paths) |
 | `gd:diffWorking` | `{repo, path?}` | unified diff text |
+| `gd:listFiles` | `{repo, rev?, ignored?}` | every file, working tree or that commit, with state and flags |
+| `gd:readFileAt` | `{repo, path, rev?}` | one file's content, size, binary flag |
+| `gd:setFileFlag` | `{repo, paths[], flag, on}` | — (`flag`: `assume` or `skip`) |
+| `gd:ignorePaths` | `{repo, paths[]}` | — (appends to the top-level `.gitignore`) |
+| `gd:moveFile` | `{repo, from, to}` | — (`git mv` when tracked) |
+| `gd:removeFiles` | `{repo, paths[], cached?}` | — |
+| `gd:fileLog` | `{repo, path}` | commits that changed the file, following renames |
+| `gd:trashFiles` | `{repo, paths[]}` | — (moves to the system trash) |
+| `gd:revealFile` | `{repo, path}` | — |
 | `gd:diffStaged` | `{repo, path?}` | unified diff text |
 | `gd:commitInfo` | `{repo, hash}` | `{meta, diff}` |
 | `gd:log` | `{repo}` | commit list with parents and refs |
@@ -579,6 +627,7 @@ applied automatically when `WSL_DISTRO_NAME` or `WSL_INTEROP` is set:
 - [x] GitHub pull requests (list, read, check out, create)
 - [x] Repository tabs, submodules, worktrees, LFS
 - [x] Clone by URL; styled confirmation dialogs
+- [x] Files view: whole-repository file browser and per-commit trees
 - [x] Light theme, configurable git executable
 - [ ] Packaged installers (AppImage, NSIS, dmg)
 - [ ] Bundled git (needs a GPL-compliant packaging decision)

@@ -23,6 +23,7 @@ function configureGit(exe) {
 }
 
 // opts.input: text written to stdin. opts.env: extra environment for this call.
+// opts.encoding: 'buffer' resolves the raw output Buffer instead of a utf8 string.
 function run(repoPath, args, opts = {}) {
   return new Promise((resolve, reject) => {
     const env = Object.assign({}, GIT_ENV, askpassEnv, opts.env || {});
@@ -35,7 +36,8 @@ function run(repoPath, args, opts = {}) {
     p.stdin.end(opts.input == null ? undefined : opts.input);
     p.on('error', (e) => reject(e.code === 'ENOENT' ? new Error(gitExe === 'git' ? 'git executable not found on PATH' : 'git executable not found: ' + gitExe) : e));
     p.on('close', (code) => {
-      if (code === 0) resolve(Buffer.concat(out).toString('utf8'));
+      const raw = Buffer.concat(out);
+      if (code === 0) resolve(opts.encoding === 'buffer' ? raw : raw.toString('utf8'));
       else reject(new Error('git ' + args.join(' ') + ' failed: ' + Buffer.concat(err).toString('utf8').trim().slice(0, 600)));
     });
   });

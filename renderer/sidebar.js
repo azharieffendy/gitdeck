@@ -3,7 +3,19 @@
 // Click selects the ref's commit in the log; double-click a local branch to switch
 // to it, a stash to open it. Classic script: shares globals with app.js.
 
-const treeClosed = new Set((() => { try { return JSON.parse(loadPref('treeClosed', '[]')); } catch { return []; } })());
+// Collapsed groups and each group's dragged height (px; none = fit its items).
+// Read on the first render: app.js (loadPref) loads after this script.
+const treeClosed = new Set();
+const treeHeights = {};
+let treePrefsLoaded = false;
+const TREE_MIN_HEIGHT = 24;
+
+function loadTreePrefs() {
+  if (treePrefsLoaded) return;
+  treePrefsLoaded = true;
+  try { JSON.parse(loadPref('treeClosed', '[]')).forEach((g) => treeClosed.add(g)); } catch { /* keep defaults */ }
+  try { Object.assign(treeHeights, JSON.parse(loadPref('treeHeights', '{}'))); } catch { /* keep defaults */ }
+}
 
 function tipOf(kind, name) {
   const c = state.log.find((x) => x.refs.some((r) => r.kind === kind && r.name === name));
@@ -24,13 +36,70 @@ function treeGroup(key, label, items) {
   return '<div class="tree-group' + (open ? ' open' : '') + '" data-group="' + key + '">' +
     '<button class="tree-head" data-group="' + key + '" aria-expanded="' + open + '"><svg class="tree-caret" viewBox="0 0 10 10"><path d="M3 1.5l4 3.5-4 3.5z"/></svg>' +
     esc(label) + '<span class="tree-count">' + items.length + '</span></button>' +
-    (open ? '<div class="tree-items">' + (items.join('') || '<div class="tree-empty">None</div>') + '</div>' : '') + '</div>';
+    (open ? '<div class="tree-items" data-group="' + key + '">' + (items.join('') || '<div class="tree-empty">None</div>') + '</div>' +
+      '<div class="tree-grip" data-group="' + key + '" tabindex="0" role="separator" aria-orientation="horizontal" aria-label="Resize ' +
+      esc(label) + '" title="Drag to resize ' + esc(label) + ' (double-click to fit)"></div>' : '') + '</div>';
+}
+
+// Give each resized group its height; the list scrolls inside it.
+function applyTreeHeights() {
+  document.querySelectorAll('#ref-tree .tree-items').forEach((el) => {
+    const h = treeHeights[el.dataset.group];
+    el.style.height = h ? h + 'px' : '';
+    el.classList.toggle('sized', !!h);
+  });
+}
+
+function setTreeHeight(group, h) {
+  const el = document.querySelector('#ref-tree .tree-items[data-group="' + group + '"]');
+  if (!el) return;
+  // No taller than the items themselves: past that it would only add empty space.
+  const natural = [...el.children].reduce((sum, c) => sum + c.offsetHeight, 0);
+  const fitted = Math.round(Math.max(TREE_MIN_HEIGHT, Math.min(h, natural)));
+  if (fitted >= natural) delete treeHeights[group]; else treeHeights[group] = fitted;
+  applyTreeHeights();
+}
+
+function wireTreeGrips() {
+  document.querySelectorAll('#ref-tree .tree-grip').forEach((grip) => {
+    const group = grip.dataset.group;
+    const items = () => document.querySelector('#ref-tree .tree-items[data-group="' + group + '"]');
+    grip.onpointerdown = (ev) => {
+      if (ev.button !== 0) return;
+      ev.preventDefault();
+      grip.setPointerCapture(ev.pointerId);
+      const startY = ev.clientY;
+      const startH = items().offsetHeight;
+      document.body.classList.add('resizing-row');
+      grip.classList.add('active');
+      grip.onpointermove = (e) => setTreeHeight(group, startH + e.clientY - startY);
+      grip.onpointerup = grip.onpointercancel = () => {
+        grip.onpointermove = grip.onpointerup = grip.onpointercancel = null;
+        document.body.classList.remove('resizing-row');
+        grip.classList.remove('active');
+        savePref('treeHeights', JSON.stringify(treeHeights));
+      };
+    };
+    grip.onkeydown = (ev) => {
+      const dir = { ArrowUp: -1, ArrowDown: 1 }[ev.key];
+      if (!dir) return;
+      ev.preventDefault();
+      setTreeHeight(group, items().offsetHeight + dir * (ev.shiftKey ? 96 : 24));
+      savePref('treeHeights', JSON.stringify(treeHeights));
+    };
+    grip.ondblclick = () => {
+      delete treeHeights[group];
+      applyTreeHeights();
+      savePref('treeHeights', JSON.stringify(treeHeights));
+    };
+  });
 }
 
 function renderRefTree() {
   const el = $('#ref-tree');
   if (!el) return;
   if (!state.repo) { el.innerHTML = ''; return; }
+  loadTreePrefs();
   const b = state.branchesData || { local: [], remote: [] };
   const ab = state.ab;
   const local = b.local.map((br) => treeItem({
@@ -43,6 +112,8 @@ function renderRefTree() {
   const stashes = state.stashes.map((s) => treeItem({ key: 'stash:' + s.ref, act: 'stash', name: s.ref, icon: 'stash', title: s.subject + ' (double-click to open)', aux: '' }));
   el.innerHTML = treeGroup('local', 'Local branches', local) + treeGroup('remote', 'Remote branches', remote) +
     treeGroup('tags', 'Tags', tags) + treeGroup('stashes', 'Stashes', stashes);
+  applyTreeHeights();
+  wireTreeGrips();
 }
 
 function onTreeClick(item, dbl) {
