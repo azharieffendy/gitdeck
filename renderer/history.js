@@ -189,6 +189,7 @@ async function showCommitDetail(hash) {
       btn('act-cherry', 'Cherry-pick', 'Apply this commit on top of the current branch') +
       btn('act-revert', 'Revert', 'Create a commit that undoes this one') +
       btn('act-tag', 'Tag…', 'Create a tag on this commit') +
+      btn('act-files-at', 'Files', 'Browse the repository files as of this commit') +
       btn('act-branch-here', 'Branch…', 'Create a branch starting at this commit') +
       btn('act-rebase-here', 'Rebase from here…', 'Interactively rebase the commits after this one') + MODE_SLOT + '</div>' +
       '<div class="detail-meta"><div class="msg">' + esc(m.message) + '</div>' +
@@ -205,6 +206,7 @@ async function showCommitDetail(hash) {
         if (state.op) setView('worktree');
       };
       $('#act-tag').onclick = () => createTagDialog(m.hash);
+      $('#act-files-at').onclick = () => browseFilesAt(m.hash);
       $('#act-branch-here').onclick = async () => {
         const v = await formDialog({ title: 'New branch at ' + short, ok: 'Create', fields: [
           { name: 'name', label: 'Branch name', placeholder: 'feature/name' },

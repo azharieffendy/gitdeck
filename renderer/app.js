@@ -108,12 +108,13 @@ async function refreshAll() {
 
   renderHistory();
   renderRefTree();
+  markFilesDirty(); // the Files view refetches its list on the next render
   renderView();
 }
 
 // ---------- views ----------
 // The log has its own panel, so views only drive the list panel.
-const VIEW_TITLES = { worktree: 'Files', branches: 'Branches and tags', stashes: 'Stashes', pulls: 'Pull requests', repository: 'Repository' };
+const VIEW_TITLES = { worktree: 'Working tree', files: 'Files', branches: 'Branches and tags', stashes: 'Stashes', pulls: 'Pull requests', repository: 'Repository' };
 
 function setView(view) {
   if (view === 'history') view = 'worktree'; // older callers: the log is always visible now
@@ -130,6 +131,7 @@ function setView(view) {
 function renderView() {
   if (!state.repo) return;
   if (state.view === 'worktree') renderWorktree();
+  else if (state.view === 'files') renderFiles();
   else if (state.view === 'stashes') renderStashes();
   else if (state.view === 'pulls') renderPulls();
   else if (state.view === 'repository') renderRepository();
@@ -487,6 +489,8 @@ async function prefillTemplate() {
     if (tpl && !state.commitDraft.trim()) {
       state.commitDraft = tpl;
       if (state.view === 'worktree') renderWorktree();
+      const filesMsg = $('#files-commit-msg');
+      if (filesMsg && !filesMsg.value.trim()) filesMsg.value = tpl;
     }
   } catch { /* a missing or unreadable template just leaves the box empty */ }
 }
@@ -581,7 +585,11 @@ function wireToolbar() {
   $('#btn-push').onclick = () => networkOp('gd:push', 'Pushing…', 'Pushed');
   $('#branch-pill').onclick = () => setView('branches');
   document.querySelectorAll('.nav-item').forEach((el) => {
-    el.onclick = () => setView(el.dataset.view);
+    el.onclick = () => {
+      // Clicking Files while browsing a commit's tree returns to the working tree.
+      if (el.dataset.view === 'files' && filesState.rev) { exitFilesRev(); return; }
+      setView(el.dataset.view);
+    };
   });
 }
 
@@ -599,7 +607,7 @@ initSettings();
     const params = new URLSearchParams(window.location.search);
     repo = params.get('repo');
     const view = params.get('view');
-    if (['history', 'branches', 'worktree', 'stashes', 'pulls', 'repository'].includes(view)) {
+    if (['history', 'branches', 'worktree', 'files', 'stashes', 'pulls', 'repository'].includes(view)) {
       state.view = view === 'history' ? 'worktree' : view;
       $('#list-title').textContent = VIEW_TITLES[state.view];
       document.querySelectorAll('.nav-item').forEach((el) => {

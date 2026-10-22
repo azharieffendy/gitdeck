@@ -237,6 +237,184 @@ async function conflictWithBase(repoPath, rel) {
   await run(repoPath, ['checkout', '--conflict=diff3', '--', rel]);
 }
 
+// ---- file browser (the Files view) -------------------------------------------------
+// SmartGit-style: every file in the repository, not just the changed ones.
+const MAX_LIST_FILES = 50000;
+const MAX_VIEW_BYTES = 2 * 1024 * 1024;
+
+// A repo-relative path that cannot escape the working tree or smuggle an option.
+function assertRelPath(rel) {
+  if (typeof rel !== 'string' || !rel || rel.startsWith('-') || path.isAbsolute(rel) ||
+    rel.split('/').some((part) => !part || part === '.' || part === '..') || /[\0-\x1f]/.test(rel)) {
+    throw new Error('Invalid file path: ' + rel);
+  }
+}
+
+// rev null: the working tree, each file with its state (tracked, untracked or
+// ignored) and its assume-unchanged / skip-worktree flags.
+// rev set (validated hash): the complete tree of that commit. Sizes come free
+// from ls-tree -l; the working tree is listed without sizes to keep it fast.
+// opts.ignored: also list ignored files (working tree only).
+async function listFiles(repoPath, rev, opts = {}) {
+  if (rev) {
+    assertHash(rev);
+    const out = await run(repoPath, ['ls-tree', '-rzl', '--full-tree', rev]);
+    // record: "<mode> <type> <object> <size>\t<path>", NUL-terminated
+    const files = [];
+    let truncated = false;
+    for (const rec of out.split('\0')) {
+      if (!rec) continue;
+      const tab = rec.indexOf('\t');
+      if (tab === -1) continue;
+      // git pads the size column with spaces; drop the empty split fields
+      const meta = rec.slice(0, tab).split(' ').filter(Boolean);
+      if (meta[1] !== 'blob') continue; // submodules (gitlinks) are not readable files
+      if (files.length >= MAX_LIST_FILES) { truncated = true; break; }
+      files.push({ path: rec.slice(tab + 1), size: parseInt(meta[3], 10) || 0 });
+    }
+    return { rev, truncated, files };
+  }
+  // -v tags each tracked path: H cached, S skip-worktree, M unmerged; lower case
+  // marks assume-unchanged. --deduplicate: a conflicted path appears once.
+  const tracked = await run(repoPath, ['ls-files', '-z', '-v', '--deduplicate', '--cached']);
+  const others = await run(repoPath, ['ls-files', '-z', '--others', '--exclude-standard']);
+  const files = [];
+  let truncated = false;
+  const add = (entry) => {
+    if (files.length >= MAX_LIST_FILES) { truncated = true; return false; }
+    files.push(entry);
+    return true;
+  };
+  for (const rec of tracked.split('\0')) {
+    if (rec.length < 3) continue;
+    const tag = rec[0];
+    if (!add({ path: rec.slice(2), state: 'tracked', assume: tag !== tag.toUpperCase(), skip: tag.toUpperCase() === 'S' })) break;
+  }
+  for (const p of others.split('\0')) if (p && !add({ path: p, state: 'untracked' })) break;
+  if (opts.ignored && !truncated) {
+    // --directory: an ignored folder is one entry ("build/"); like SmartGit, never scanned.
+    const ignored = await run(repoPath, ['ls-files', '-z', '--others', '--ignored', '--exclude-standard', '--directory']);
+    for (const p of ignored.split('\0')) if (p && !add({ path: p, state: 'ignored', dir: p.endsWith('/') })) break;
+  }
+  return { rev: null, truncated, files };
+}
+
+// The Files view's per-file commands. Each takes repo-relative paths, validated.
+const FILE_FLAGS = { assume: 'assume-unchanged', skip: 'skip-worktree' };
+async function setFileFlag(repoPath, rels, flag, on) {
+  if (!FILE_FLAGS[flag]) throw new Error('Unknown file flag: ' + flag);
+  rels.forEach(assertRelPath);
+  if (!rels.length) return;
+  await run(repoPath, ['update-index', (on ? '--' : '--no-') + FILE_FLAGS[flag], '--', ...rels]);
+}
+
+// Appends anchored patterns ("/path") to the top-level .gitignore.
+async function ignorePaths(repoPath, rels) {
+  rels.forEach(assertRelPath);
+  if (!rels.length) return;
+  const file = safeRepoPath(repoPath, '.gitignore');
+  const prev = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : '';
+  // Escape glob characters and a trailing space so the pattern matches only this path.
+  const lines = rels.map((r) => '/' + r.replace(/[*?[\\]/g, '\\$&').replace(/ $/, '\\ '));
+  fs.writeFileSync(file, prev + (prev && !prev.endsWith('\n') ? '\n' : '') + lines.join('\n') + '\n');
+}
+
+// Rename or move one file: git mv when tracked, a plain rename when untracked.
+async function moveFile(repoPath, from, to) {
+  assertRelPath(from);
+  assertRelPath(to);
+  const src = safeRepoPath(repoPath, from);
+  const dst = path.resolve(fs.realpathSync(repoPath), to);
+  safeRepoPathParent(repoPath, to);
+  if (fs.existsSync(dst)) throw new Error(to + ' already exists');
+  fs.mkdirSync(path.dirname(dst), { recursive: true });
+  const isTracked = (await run(repoPath, ['ls-files', '-z', '--', from])).length > 0;
+  if (isTracked) await run(repoPath, ['mv', '--', from, to]);
+  else fs.renameSync(src, dst);
+}
+
+// The destination's existing ancestors must stay inside the tree, outside .git, link-free.
+function safeRepoPathParent(repoPath, rel) {
+  const root = fs.realpathSync(repoPath);
+  if (rel.split('/')[0] === '.git') throw new Error('Path is outside the working tree: ' + rel);
+  let dir = path.dirname(path.resolve(root, rel));
+  while (!fs.existsSync(dir)) dir = path.dirname(dir);
+  if (fs.realpathSync(dir) !== dir || path.relative(root, dir).startsWith('..')) {
+    throw new Error('Path goes through a link: ' + rel);
+  }
+}
+
+// git rm; opts.cached keeps the files on disk and only stops tracking them.
+// -f: the caller has already confirmed, so local or staged changes do not block it.
+async function removeFiles(repoPath, rels, opts = {}) {
+  rels.forEach(assertRelPath);
+  if (!rels.length) return;
+  await run(repoPath, ['rm', '-q', '-f', ...(opts.cached ? ['--cached'] : []), '--', ...rels]);
+}
+
+// Commit only these paths (git commit --only): changes elsewhere, staged or not,
+// stay as they are. Untracked paths are added first so the commit can take them.
+// Paths go through stdin, so a large folder does not overflow the command line.
+async function commitPaths(repoPath, message, rels, opts = {}) {
+  if (!message || !message.trim()) throw new Error('Commit message is empty');
+  if (!Array.isArray(rels) || !rels.length) throw new Error('No files selected to commit');
+  rels.forEach(assertRelPath);
+  const untracked = (opts.untracked || []).filter((p) => rels.includes(p));
+  const fromStdin = ['--pathspec-from-file=-', '--pathspec-file-nul'];
+  if (untracked.length) {
+    await run(repoPath, ['--literal-pathspecs', 'add', ...fromStdin], { input: untracked.join('\0') });
+  }
+  try {
+    await run(repoPath, ['--literal-pathspecs', 'commit', '--only', ...(opts.amend ? ['--amend'] : []), '-m', message, ...fromStdin],
+      { input: rels.join('\0') });
+  } catch (err) {
+    // A failed commit (hook, signing) must not leave the untracked files staged.
+    if (untracked.length) {
+      await run(repoPath, ['--literal-pathspecs', 'rm', '-q', '-f', '--cached', '--ignore-unmatch', ...fromStdin],
+        { input: untracked.join('\0') }).catch(() => {});
+    }
+    throw err;
+  }
+  return g.headInfo(repoPath);
+}
+
+// The history of one file, following renames.
+async function fileLog(repoPath, rel, limit = 500) {
+  assertRelPath(rel);
+  const fmt = ['%H', '%h', '%an', '%at', '%s'].join(FIELD);
+  const out = await run(repoPath, ['log', '--follow', '-n', String(limit), '--format=' + fmt, '--', rel]);
+  return out.split('\n').filter(Boolean).map((line) => {
+    const [hash, short, authorName, ts, subject] = line.split(FIELD);
+    return { hash, short, authorName, timestamp: parseInt(ts, 10) * 1000 || 0, subject };
+  });
+}
+
+// Content of one file as the Files view shows it: from the working tree, or as
+// of a commit. Binary files are reported, not decoded; huge ones are cut.
+async function readFileAt(repoPath, rel, rev) {
+  assertRelPath(rel);
+  let buf;
+  if (rev) {
+    assertHash(rev);
+    try { buf = await run(repoPath, ['show', rev + ':' + rel], { encoding: 'buffer' }); }
+    catch (e) { throw new Error(rel + ' is not in ' + rev.slice(0, 8) + ' (it may not exist there)'); }
+  } else {
+    try {
+      const full = safeRepoPath(repoPath, rel);
+      if (!fs.statSync(full).isFile()) throw new Error('Not a file: ' + rel);
+      buf = fs.readFileSync(full);
+    } catch (e) {
+      if (e.code === 'ENOENT') throw new Error(rel + ' does not exist in the working tree');
+      throw e;
+    }
+  }
+  const size = buf.length;
+  if (buf.slice(0, 8000).includes(0)) return { path: rel, rev: rev || null, binary: true, truncated: false, size, content: '' };
+  const truncated = size > MAX_VIEW_BYTES;
+  return { path: rel, rev: rev || null, binary: false, truncated, size,
+    content: (truncated ? buf.slice(0, MAX_VIEW_BYTES) : buf).toString('utf8') };
+}
+
 // ---- interactive rebase ------------------------------------------------------------
 // git runs GIT_SEQUENCE_EDITOR / GIT_EDITOR through a shell with the file to edit as
 // the last argument. Both point at editor/editor.js, which copies the prepared todo
@@ -335,5 +513,6 @@ module.exports = {
   renameBranch, addRemote, removeRemote, reflog, cherryPickMany, commitTemplate,
   submodules, submoduleUpdate, parseWorktrees, worktrees, worktreeAdd, worktreeRemove,
   lfsInfo, lfsPull, safeRepoPath, readWorkingFile, writeWorkingFile, saveResolved, conflictWithBase,
-  rebaseCommits, rebasePlan, rebaseInteractive, continueOperation, abortOperation,
+  assertRelPath, listFiles, readFileAt, setFileFlag, ignorePaths, moveFile, removeFiles, fileLog,
+  commitPaths, rebaseCommits, rebasePlan, rebaseInteractive, continueOperation, abortOperation,
 };
