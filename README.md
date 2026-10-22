@@ -628,6 +628,7 @@ applied automatically when `WSL_DISTRO_NAME` or `WSL_INTEROP` is set:
 - [x] Repository tabs, submodules, worktrees, LFS
 - [x] Clone by URL; styled confirmation dialogs
 - [x] Files view: whole-repository file browser and per-commit trees
+- [x] Busy indicator: centered card and top bar while git runs (quick operations never flicker)
 - [x] Light theme, configurable git executable
 - [ ] Packaged installers (AppImage, NSIS, dmg)
 - [ ] Bundled git (needs a GPL-compliant packaging decision)

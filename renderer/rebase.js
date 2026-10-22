@@ -60,7 +60,6 @@ async function showRebase(base) {
     if (!(await confirmDialog('Rewrite ' + steps.length + ' commits on ' + state.branch + (dropped ? ' and drop ' + dropped : '') + '?',
       { title: 'Interactive rebase', ok: 'Rebase', danger: true }))) return;
     $('#rb-start').disabled = true;
-    toast('Rebasing…', '', true);
     try {
       await api('gd:rebase', { repo: state.repo, base, steps: plan });
       toast('Rebase complete', 'success');

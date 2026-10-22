@@ -25,6 +25,8 @@
     el('cred-ok').textContent = confirm ? 'Yes, connect' : 'OK';
     el('cred-cancel').textContent = confirm ? 'No' : 'Cancel';
     el('cred-dialog').showModal();
+    // git is waiting on the user now, not working: hide the busy card meanwhile.
+    document.body.classList.add('busy-paused');
     // For an unknown host key the safe default is No.
     (confirm ? el('cred-cancel') : input).focus();
   }
@@ -35,6 +37,7 @@
     current = null;
     el('cred-input').value = '';
     el('cred-dialog').close();
+    document.body.classList.remove('busy-paused');
     window.gitdeck.invoke('gd:askpassReply', { id, answer: value });
     if (queue.length) show(queue.shift());
   }

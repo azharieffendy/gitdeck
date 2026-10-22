@@ -4,6 +4,8 @@ const assert = require('assert');
 const GitDiff = require('../renderer/diff.js');
 const GitGraph = require('../renderer/graph.js');
 const { repoNameFromUrl } = require('../renderer/clone.js');
+const { busyLabel, OP_TITLES } = require('../renderer/busy.js');
+const { registerIpc } = require('../ipc.js');
 
 let passed = 0;
 function ok(name, fn) { fn(); passed++; console.log('  ok -', name); }
@@ -110,6 +112,34 @@ try {
     assert.strictEqual(repoNameFromUrl('D:\\repos\\myrepo'), 'myrepo');
     assert.strictEqual(repoNameFromUrl('https://x.example/a<b'), 'ab');
     assert.strictEqual(repoNameFromUrl(''), '');
+  });
+
+  ok('busyLabel: silent channels, payload detail labels and fallback', () => {
+    assert.strictEqual(busyLabel('gd:askpassReply'), null); // relayed in main.js, not ipc.js
+    assert.strictEqual(busyLabel('gd:pickFolder'), null);
+    assert.strictEqual(busyLabel('gd:openExternal'), null);
+    assert.strictEqual(busyLabel('gd:pull', { rebase: true }), 'Pulling (rebase)');
+    assert.strictEqual(busyLabel('gd:pull', {}), 'Pulling');
+    assert.strictEqual(busyLabel('gd:pushTag', { name: 'v1.2', remote: 'origin' }), 'Pushing tag v1.2 to origin');
+    assert.strictEqual(busyLabel('gd:deleteRemoteTag', { name: 'v1', remote: 'up' }), 'Deleting tag v1 on up');
+    assert.strictEqual(busyLabel('gd:submoduleUpdate', { path: 'lib/x' }), 'Updating submodule lib/x');
+    assert.strictEqual(busyLabel('gd:submoduleUpdate', {}), 'Updating submodules');
+    assert.strictEqual(busyLabel('gd:ghCheckout', { number: 7 }), 'Checking out pull request #7');
+    assert.strictEqual(busyLabel('gd:switchBranch', { name: 'main' }), 'Switching to main');
+    assert.strictEqual(busyLabel('gd:merge', { name: 'feature' }), 'Merging feature');
+    assert.strictEqual(busyLabel('gd:whatever'), 'Whatever'); // fallback for unmapped channels
+  });
+
+  ok('every IPC channel shows a proper busy label or is deliberately silent', () => {
+    const channels = [];
+    registerIpc({ handle: (c) => channels.push(c), dialog: {}, shell: {}, getWin: () => null });
+    assert.ok(channels.length > 75, 'expected the full channel set, got ' + channels.length);
+    for (const c of channels) {
+      // Without a payload the label must be the mapped title or null (silent);
+      // falling through to the generic form means a channel was left unnamed.
+      const label = busyLabel(c);
+      assert.ok(label === null || OP_TITLES[c] === label, 'channel lacks a busy title: ' + c);
+    }
   });
 
   console.log('\nALL ' + passed + ' TESTS PASSED');
